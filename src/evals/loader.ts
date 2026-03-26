@@ -28,7 +28,7 @@ interface TaskJson {
 }
 
 function loadVulns(fixtureName: string): Vulnerability[] {
-  const vulnsPath = join(FIXTURES_DIR, fixtureName, "vulns.json");
+  const vulnsPath = join(FIXTURES_DIR, `${fixtureName}.json`);
   let raw: { vulnerabilities: Vulnerability[] };
   try {
     raw = JSON.parse(readFileSync(vulnsPath, "utf-8"));

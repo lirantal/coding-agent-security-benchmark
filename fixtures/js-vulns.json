@@ -1,5 +1,4 @@
 {
-  "fixture": "js-vulns",
   "description": "Intentionally vulnerable Express.js app for security benchmark testing",
   "vulnerabilities": [
     {

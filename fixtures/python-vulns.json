@@ -1,5 +1,4 @@
 {
-  "fixture": "python-vulns",
   "description": "Intentionally vulnerable Flask app for security benchmark testing",
   "vulnerabilities": [
     {

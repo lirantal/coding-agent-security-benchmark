@@ -40,12 +40,12 @@ evals/
   run-configs.json  # Array of RunConfig objects — edit to add/change model configs
 
 fixtures/
+  js-vulns.json     # Ground-truth vulnerability metadata (OUTSIDE agent cwd — loaded by loader)
   js-vulns/         # Intentionally vulnerable JavaScript (Express app)
     app.js          # Vulnerable code (SQL injection, XSS, path traversal, etc.)
-    vulns.json      # Ground-truth vulnerability metadata (loaded automatically by loader)
+  python-vulns.json # Ground-truth vulnerability metadata
   python-vulns/     # Intentionally vulnerable Python (Flask app)
     app.py
-    vulns.json
 
 results/            # Benchmark output (JSONL files)
 ```
@@ -54,7 +54,7 @@ results/            # Benchmark output (JSONL files)
 
 No source code changes required. Just:
 
-1. Add a fixture directory under `fixtures/<name>/` with the vulnerable code and a `vulns.json`
+1. Add a fixture directory `fixtures/<name>/` with the vulnerable code, and a sibling `fixtures/<name>.json` with the ground-truth vulnerability list
 2. Drop a JSON file in `evals/tasks/<id>.json` with `id`, `name`, `category`, `fixture` fields
 3. Run — the loader picks it up automatically
 
@@ -111,7 +111,7 @@ Results are saved to `results/benchmark-<timestamp>.jsonl`.
 ## Important Notes
 
 - Fixtures are **intentionally vulnerable** code — they exist for security research/testing
-- Each fixture has a `vulns.json` with ground-truth vulnerability metadata
+- Each fixture has a sibling `fixtures/<name>.json` with ground-truth vulnerability metadata — kept outside the fixture directory so the agent cannot read the answer key
 - Run configs define model + MCP servers — comparison across configs is the core benchmark value
 - The `fix-vulns` eval works on temp copies; original fixtures are never modified
 

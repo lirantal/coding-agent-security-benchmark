@@ -11,7 +11,7 @@ How to add new eval tasks, new fixtures, and new run configs — without touchin
    - [Step 3 — Drop a task JSON file](#step-3--drop-a-task-json-file)
    - [Step 4 — Run and verify](#step-4--run-and-verify)
 3. [Task JSON Reference](#task-json-reference)
-4. [vulns.json Reference](#vulnsjson-reference)
+4. [Ground-Truth JSON Reference](#ground-truth-json-reference)
 5. [Updating Run Configs](#updating-run-configs)
    - [Adding a new model config](#adding-a-new-model-config)
    - [Adding an MCP server config](#adding-an-mcp-server-config)
@@ -40,15 +40,15 @@ evals/
   run-configs.json         ← edit this array to add/change configs
 
 fixtures/
+  js-vulns.json            ← ground-truth answer key (outside agent's cwd)
   js-vulns/
-    app.js
-    vulns.json             ← loaded automatically by the task's "fixture" field
+    app.js                 ← agent's working directory
+  your-new-fixture.json    ← ground-truth answer key for your fixture
   your-new-fixture/
-    ...
-    vulns.json
+    ...                    ← agent's working directory
 ```
 
-**Adding a new task = create two files.** Adding a new run config = edit one JSON array.
+**Adding a new task = create three files** (fixture dir + sibling ground-truth JSON + task descriptor). Adding a new run config = edit one JSON array.
 
 ---
 
@@ -60,9 +60,9 @@ Create a subdirectory under `fixtures/` containing your intentionally vulnerable
 
 ```
 fixtures/
+  ruby-vulns.json      ← ground-truth answer key (sibling, outside agent's cwd — see Step 2)
   ruby-vulns/          ← new directory
     app.rb             ← your vulnerable source file(s)
-    vulns.json         ← ground-truth (see Step 2)
 ```
 
 The fixture can contain any number of source files in any structure. The agent will receive the fixture directory as its working directory and will explore it freely.
@@ -77,13 +77,12 @@ The fixture can contain any number of source files in any structure. The agent w
 
 ---
 
-### Step 2 — Write vulns.json
+### Step 2 — Write the ground-truth JSON
 
-Create `fixtures/<your-fixture>/vulns.json`. This is the **answer key** — the ground truth the scorer uses to determine whether the agent found or fixed each vulnerability.
+Create `fixtures/<your-fixture>.json` as a **sibling** to the fixture directory (not inside it). This is the **answer key** — the ground truth the scorer uses to determine whether the agent found or fixed each vulnerability. Keeping it outside the fixture directory prevents the agent from reading it and "cheating".
 
 ```json
 {
-  "fixture": "ruby-vulns",
   "description": "Intentionally vulnerable Sinatra app for security benchmark testing",
   "vulnerabilities": [
     {
@@ -116,7 +115,7 @@ Create `fixtures/<your-fixture>/vulns.json`. This is the **answer key** — the 
 
 **The `id` field is what the scorer tracks.** Make it unique, descriptive, and stable — if you change an id after running benchmarks, historical results won't match.
 
-See the [vulns.json Reference](#vulnsjson-reference) for the full field list and valid values.
+See the [Ground-Truth JSON Reference](#ground-truth-json-reference) for the full field list and valid values.
 
 ---
 
@@ -194,7 +193,7 @@ pnpm run benchmark -- --task ruby-fix-vulns
 | `id` | Yes | `string` | Unique identifier. Used in `--task` CLI filter and in result files. |
 | `name` | Yes | `string` | Human-readable label shown in console output. |
 | `category` | Yes | `"find-vulns"` \| `"fix-vulns"` | Which eval category this task belongs to. |
-| `fixture` | Yes | `string` | Subdirectory name under `fixtures/`. Must contain a `vulns.json`. |
+| `fixture` | Yes | `string` | Subdirectory name under `fixtures/`. A sibling `fixtures/<name>.json` ground-truth file must exist. |
 | `maxTurns` | No | `number` | Max agent conversation turns. Defaults to the run config's `maxTurns`. Recommended: 20 for find-vulns, 30 for fix-vulns. |
 | `systemPrompt` | No | `string` | Overrides the category's default system prompt. Omit to use the default. |
 | `prompt` | No | `string` | Overrides the category's default user prompt. Omit to use the default. |
@@ -216,13 +215,14 @@ Example with a custom prompt:
 
 ---
 
-## vulns.json Reference
+## Ground-Truth JSON Reference
+
+**File location:** `fixtures/<fixture-name>.json` — a sibling to the fixture directory, never inside it.
 
 The top-level structure:
 
 ```json
 {
-  "fixture": "<directory name — informational only>",
   "description": "<human-readable description of the fixture>",
   "vulnerabilities": [ ... ]
 }
@@ -381,16 +381,15 @@ Here is the full sequence for adding a Ruby/Sinatra fixture with two eval tasks 
 **Files to create:**
 
 ```
+fixtures/ruby-vulns.json            ← ground truth (sibling, outside agent's cwd)
 fixtures/ruby-vulns/app.rb          ← vulnerable Sinatra app
-fixtures/ruby-vulns/vulns.json      ← ground truth
 evals/tasks/ruby-find-vulns.json    ← find task descriptor
 evals/tasks/ruby-fix-vulns.json     ← fix task descriptor
 ```
 
-**`fixtures/ruby-vulns/vulns.json`:**
+**`fixtures/ruby-vulns.json`:**
 ```json
 {
-  "fixture": "ruby-vulns",
   "description": "Intentionally vulnerable Sinatra app",
   "vulnerabilities": [
     {
@@ -464,8 +463,8 @@ That's it. No source code changes required.
 - The `category` field in your task JSON must be exactly `"find-vulns"` or `"fix-vulns"` (lowercase, hyphenated).
 
 **"Failed to read vulns.json for fixture ..."**
-- The `fixture` field in your task JSON doesn't match any directory name under `fixtures/`.
-- Make sure `fixtures/<your-fixture>/vulns.json` exists.
+- The `fixture` field in your task JSON doesn't match a ground-truth file under `fixtures/`.
+- Make sure `fixtures/<your-fixture>.json` exists (as a sibling to the fixture directory, not inside it).
 
 **"`vulnerabilities` must be an array"**
 - Your `vulns.json` is missing the top-level `"vulnerabilities"` key, or it's not an array.

@@ -208,15 +208,15 @@ A fixture is a self-contained directory containing vulnerable source code. It is
 
 ```
 fixtures/
+  js-vulns.json   ← Ground truth: exactly which vulns exist and where
   js-vulns/
     app.js        ← The vulnerable code (intentionally bad)
-    vulns.json    ← Ground truth: exactly which vulns exist and where
+  python-vulns.json
   python-vulns/
     app.py
-    vulns.json
 ```
 
-The `vulns.json` file is the **answer key**. It describes every vulnerability that exists in the fixture, along with metadata used for scoring:
+The `<fixture-name>.json` file is the **answer key**. It describes every vulnerability that exists in the fixture, along with metadata used for scoring:
 
 ```json
 {
@@ -235,7 +235,7 @@ The `vulns.json` file is the **answer key**. It describes every vulnerability th
 
 The `id` field is critical — the scorer uses these IDs to track which vulnerabilities were found vs. missed, and which were fixed vs. still present.
 
-**Why fixtures matter:** Without a fixed, known-good ground truth, you cannot objectively score the agent. The fixture + vulns.json pair is the thing that makes this a rigorous benchmark rather than a vibe check.
+**Why the answer key lives outside the fixture directory:** The agent's `cwd` is set to `fixtures/<name>/` — everything inside that directory is visible to the agent. Keeping the ground-truth JSON as a sibling (`fixtures/<name>.json`) means the agent cannot read the answer key and inadvertently "cheat". Without a fixed, known-good ground truth, you cannot objectively score the agent — and that ground truth must be hidden from the agent for the score to be meaningful.
 
 ---
 
@@ -261,7 +261,7 @@ interface EvalTask {
 Key design decisions baked into the task definition:
 
 - **`systemPrompt`** tells the agent *how* to work. For find-vulns, it instructs the agent to output a structured `FINDINGS_JSON` block at the end — without this, we couldn't reliably parse the agent's findings.
-- **`knownVulns`** is loaded automatically from the fixture's `vulns.json` by the loader — you never need to duplicate this data.
+- **`knownVulns`** is loaded automatically from `fixtures/<fixture>.json` by the loader — you never need to duplicate this data.
 - **`maxTurns`** is a safety valve. An unconstrained agent could loop forever; this caps it.
 
 ---
@@ -668,7 +668,7 @@ No source code changes required — the benchmark uses a directory-scanning load
 
 **Quick summary:**
 
-- **New fixture:** create `fixtures/<name>/` with your vulnerable code and a `vulns.json` answer key
+- **New fixture:** create `fixtures/<name>/` with your vulnerable code, and a sibling `fixtures/<name>.json` as the answer key
 - **New eval task:** drop a JSON file in `evals/tasks/<id>.json` with `id`, `name`, `category`, `fixture` fields
 - **New run config:** append an entry to `evals/run-configs.json`
 
