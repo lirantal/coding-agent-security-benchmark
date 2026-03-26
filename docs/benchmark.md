@@ -241,7 +241,7 @@ The `id` field is critical — the scorer uses these IDs to track which vulnerab
 
 ### EvalTask — What to Do
 
-**Location:** `src/evals/tasks.ts` → `EVAL_TASKS` array
+**Location:** `evals/tasks/*.json` — one JSON file per task, loaded at startup by `src/evals/loader.ts`
 
 An `EvalTask` is a complete description of one assignment to give an agent. Think of it as a single exam question.
 
@@ -253,7 +253,7 @@ interface EvalTask {
   fixture: string;       // path to the fixture directory
   systemPrompt?: string; // instructions injected before the task starts
   prompt: string;        // the main instruction sent to the agent
-  knownVulns: Vulnerability[]; // copy of ground-truth from vulns.json
+  knownVulns: Vulnerability[]; // loaded automatically from the fixture's vulns.json
   maxTurns?: number;     // max agent conversation turns (prevents runaway)
 }
 ```
@@ -261,14 +261,14 @@ interface EvalTask {
 Key design decisions baked into the task definition:
 
 - **`systemPrompt`** tells the agent *how* to work. For find-vulns, it instructs the agent to output a structured `FINDINGS_JSON` block at the end — without this, we couldn't reliably parse the agent's findings.
-- **`knownVulns`** is duplicated from `vulns.json` into the task definition so the scorer has it at scoring time without re-reading files.
+- **`knownVulns`** is loaded automatically from the fixture's `vulns.json` by the loader — you never need to duplicate this data.
 - **`maxTurns`** is a safety valve. An unconstrained agent could loop forever; this caps it.
 
 ---
 
 ### RunConfig — Who Does It
 
-**Location:** `src/evals/tasks.ts` → `DEFAULT_RUN_CONFIGS` array
+**Location:** `evals/run-configs.json` — a JSON array loaded at startup by `src/evals/loader.ts`
 
 A `RunConfig` describes *which agent* should run the task — the model identity and any additional tools it has access to.
 
@@ -664,41 +664,13 @@ If you add a fixture with two different SQL injections in the same file, give th
 
 ## Adding Your Own Tasks and Configs
 
-### Adding a New Fixture
+No source code changes required — the benchmark uses a directory-scanning loader. See [`docs/benchmark-management.md`](./benchmark-management.md) for the full guide, including field references, worked examples, and troubleshooting.
 
-1. Create a directory under `fixtures/`, e.g. `fixtures/go-vulns/`
-2. Add your vulnerable source file(s)
-3. Add a `vulns.json` with the known vulnerabilities and their IDs
-4. Add an `EvalTask` entry in `src/evals/tasks.ts` pointing to the new fixture
+**Quick summary:**
 
-### Adding a New Run Config
-
-Edit `DEFAULT_RUN_CONFIGS` in `src/evals/tasks.ts`:
-
-```typescript
-{
-  id: "haiku-4-5",
-  name: "Claude Haiku 4.5 (cheapest)",
-  model: "claude-haiku-4-5",
-  maxTurns: 20,
-}
-```
-
-Or with an MCP security tool:
-```typescript
-{
-  id: "sonnet-with-snyk",
-  name: "Claude Sonnet 4.6 + Snyk MCP",
-  model: "claude-sonnet-4-6",
-  mcpServers: {
-    snyk: {
-      command: "npx",
-      args: ["snyk-mcp"],
-      env: { SNYK_TOKEN: process.env.SNYK_TOKEN ?? "" }
-    }
-  }
-}
-```
+- **New fixture:** create `fixtures/<name>/` with your vulnerable code and a `vulns.json` answer key
+- **New eval task:** drop a JSON file in `evals/tasks/<id>.json` with `id`, `name`, `category`, `fixture` fields
+- **New run config:** append an entry to `evals/run-configs.json`
 
 ### Running a Specific Combination
 

@@ -10,7 +10,7 @@ import {
   fixVulnsScore,
 } from "./scorer.js";
 import { printResult, printSummaryTable, saveResults } from "./reporter.js";
-import { EVAL_TASKS, DEFAULT_RUN_CONFIGS } from "./evals/tasks.js";
+import { loadEvalTasks, loadRunConfigs } from "./evals/loader.js";
 import { EVAL_CATEGORIES } from "./types.js";
 import type { EvalCategoryId, EvalResult, EvalTask, RunConfig } from "./types.js";
 
@@ -108,6 +108,9 @@ async function runEval(task: EvalTask, config: RunConfig): Promise<EvalResult> {
 
 async function main() {
   const opts = parseArgs();
+
+  const EVAL_TASKS = loadEvalTasks();
+  const DEFAULT_RUN_CONFIGS = loadRunConfigs();
 
   // Filter tasks
   let tasks = EVAL_TASKS;

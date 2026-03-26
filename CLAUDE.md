@@ -24,24 +24,41 @@ Benchmarking framework that runs AI coding agents (primarily Claude Code via the
 
 ```
 src/
-  types.ts          # Core interfaces: EvalTask, RunConfig, BenchmarkMetrics, EvalResult
+  types.ts          # Core interfaces + EVAL_CATEGORIES constant
   runner.ts         # Agent SDK wrapper — runs a task and collects metrics
   scorer.ts         # Scoring logic per eval category
   reporter.ts       # Output to console table + JSONL
   evals/
-    tasks.ts        # All eval task definitions with fixture paths and known vulnerabilities
+    loader.ts       # Scans evals/tasks/*.json + evals/run-configs.json at startup
   index.ts          # CLI entry point
+
+evals/
+  tasks/            # One JSON file per eval task — add a file to add a new task
+    js-find-vulns.json
+    js-fix-vulns.json
+    python-find-vulns.json
+  run-configs.json  # Array of RunConfig objects — edit to add/change model configs
 
 fixtures/
   js-vulns/         # Intentionally vulnerable JavaScript (Express app)
     app.js          # Vulnerable code (SQL injection, XSS, path traversal, etc.)
-    vulns.json      # Known vulnerability metadata
+    vulns.json      # Ground-truth vulnerability metadata (loaded automatically by loader)
   python-vulns/     # Intentionally vulnerable Python (Flask app)
     app.py
     vulns.json
 
 results/            # Benchmark output (JSONL files)
 ```
+
+## Adding a New Eval Task (Open/Closed)
+
+No source code changes required. Just:
+
+1. Add a fixture directory under `fixtures/<name>/` with the vulnerable code and a `vulns.json`
+2. Drop a JSON file in `evals/tasks/<id>.json` with `id`, `name`, `category`, `fixture` fields
+3. Run — the loader picks it up automatically
+
+See TODO: `docs/benchmark-management.md` for a full guide.
 
 ## How the Agent SDK Is Used
 
@@ -97,3 +114,7 @@ Results are saved to `results/benchmark-<timestamp>.jsonl`.
 - Each fixture has a `vulns.json` with ground-truth vulnerability metadata
 - Run configs define model + MCP servers — comparison across configs is the core benchmark value
 - The `fix-vulns` eval works on temp copies; original fixtures are never modified
+
+## TODO
+
+- [x] Create `docs/benchmark-management.md` — guide for adding new eval tasks (fixture layout, vulns.json schema, task JSON fields, step-by-step walkthrough) and updating run configs (fields reference, MCP server example)

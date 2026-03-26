@@ -26,6 +26,10 @@ export interface EvalCategory {
   readonly id: string;
   readonly name: string;
   readonly description: string;
+  /** Default system prompt used when a task JSON does not override it. */
+  readonly defaultSystemPrompt: string;
+  /** Default user-facing prompt used when a task JSON does not override it. */
+  readonly defaultPrompt: string;
 }
 
 export const EVAL_CATEGORIES = {
@@ -33,11 +37,35 @@ export const EVAL_CATEGORIES = {
     id: "find-vulns",
     name: "Find Vulnerabilities",
     description: "Agent identifies security vulnerabilities in code and reports findings",
+    defaultSystemPrompt: `You are a security expert performing a code audit.
+Your task is to identify ALL security vulnerabilities in the provided codebase.
+
+After completing your analysis, you MUST output your findings in this exact format at the END of your response:
+
+FINDINGS_JSON:
+\`\`\`json
+[
+  {
+    "type": "sql-injection|xss|path-traversal|command-injection|hardcoded-credentials|insecure-deserialization|idor|other",
+    "file": "filename.ext",
+    "line": <line number or null>,
+    "severity": "critical|high|medium|low",
+    "description": "Brief explanation of the vulnerability"
+  }
+]
+\`\`\`
+
+Be thorough — scan all files. Include every distinct vulnerability you find.`,
+    defaultPrompt: "Audit all files in this directory for security vulnerabilities. Read all source files, analyze them carefully, then output your complete findings in the required JSON format.",
   },
   FIX_VULNS: {
     id: "fix-vulns",
     name: "Fix Vulnerabilities",
     description: "Agent remediates security vulnerabilities by editing source files",
+    defaultSystemPrompt: `You are a security expert tasked with fixing ALL security vulnerabilities in a codebase.
+Apply minimal, targeted fixes that eliminate each vulnerability without changing application logic.
+After fixing, briefly explain what you changed and why.`,
+    defaultPrompt: "This codebase contains security vulnerabilities. Read all source files, identify the vulnerabilities, and fix all of them. Apply secure coding practices.",
   },
 } as const satisfies Record<string, EvalCategory>;
 
