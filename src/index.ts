@@ -11,7 +11,8 @@ import {
 } from "./scorer.js";
 import { printResult, printSummaryTable, saveResults } from "./reporter.js";
 import { EVAL_TASKS, DEFAULT_RUN_CONFIGS } from "./evals/tasks.js";
-import type { EvalResult, EvalTask, RunConfig } from "./types.js";
+import { EVAL_CATEGORIES } from "./types.js";
+import type { EvalCategoryId, EvalResult, EvalTask, RunConfig } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const RESULTS_DIR = resolve(__dirname, "../results");
@@ -19,18 +20,26 @@ const TMP_DIR = resolve(__dirname, "../.tmp-fixtures");
 
 // ─── CLI Argument Parsing ─────────────────────────────────────────────────────
 
+const KNOWN_CATEGORY_IDS = Object.values(EVAL_CATEGORIES).map((c) => c.id);
+
 function parseArgs() {
   const args = process.argv.slice(2);
   const opts: {
-    type?: string;
+    category?: EvalCategoryId;
     task?: string;
     config?: string;
     dryRun: boolean;
   } = { dryRun: false };
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--type" && args[i + 1]) opts.type = args[++i];
-    else if (args[i] === "--task" && args[i + 1]) opts.task = args[++i];
+    if (args[i] === "--category" && args[i + 1]) {
+      const val = args[++i];
+      if (!KNOWN_CATEGORY_IDS.includes(val as EvalCategoryId)) {
+        console.error(`Unknown category "${val}". Available: ${KNOWN_CATEGORY_IDS.join(", ")}`);
+        process.exit(1);
+      }
+      opts.category = val as EvalCategoryId;
+    } else if (args[i] === "--task" && args[i + 1]) opts.task = args[++i];
     else if (args[i] === "--config" && args[i + 1]) opts.config = args[++i];
     else if (args[i] === "--dry-run") opts.dryRun = true;
   }
@@ -47,7 +56,7 @@ async function runEval(task: EvalTask, config: RunConfig): Promise<EvalResult> {
   let cwd: string;
   let cleanupTmp = false;
 
-  if (task.type === "fix-vulns") {
+  if (task.category.id === EVAL_CATEGORIES.FIX_VULNS.id) {
     // Work on a temp copy so we don't modify the original fixture
     cwd = join(TMP_DIR, `${task.id}-${config.id}-${Date.now()}`);
     mkdirSync(cwd, { recursive: true });
@@ -75,7 +84,7 @@ async function runEval(task: EvalTask, config: RunConfig): Promise<EvalResult> {
       };
     }
 
-    if (task.type === "find-vulns") {
+    if (task.category.id === EVAL_CATEGORIES.FIND_VULNS.id) {
       const details = scoreFindVulns(finalText, task);
       const score = findVulnsScore(details);
       return { taskId: task.id, taskName: task.name, runConfigId: config.id, runConfigName: config.name, score, metrics, details, timestamp };
@@ -102,7 +111,7 @@ async function main() {
 
   // Filter tasks
   let tasks = EVAL_TASKS;
-  if (opts.type) tasks = tasks.filter((t) => t.type === opts.type);
+  if (opts.category) tasks = tasks.filter((t) => t.category.id === opts.category);
   if (opts.task) tasks = tasks.filter((t) => t.id === opts.task);
 
   // Filter configs
@@ -119,7 +128,7 @@ async function main() {
   }
 
   console.log(`\nBenchmark: ${tasks.length} task(s) × ${configs.length} config(s) = ${tasks.length * configs.length} run(s)`);
-  for (const task of tasks) console.log(`  • ${task.id} (${task.type})`);
+  for (const task of tasks) console.log(`  • ${task.id} [${task.category.id}]`);
   for (const config of configs) console.log(`  • ${config.id}: ${config.model}`);
 
   if (opts.dryRun) {

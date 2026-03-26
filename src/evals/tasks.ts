@@ -1,6 +1,7 @@
 import { resolve } from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import { EVAL_CATEGORIES } from "../types.js";
 import type { EvalTask, RunConfig } from "../types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -36,7 +37,7 @@ export const EVAL_TASKS: EvalTask[] = [
   {
     id: "js-find-vulns",
     name: "JS App: Find Vulnerabilities",
-    type: "find-vulns",
+    category: EVAL_CATEGORIES.FIND_VULNS,
     fixture: resolve(FIXTURES_DIR, "js-vulns"),
     systemPrompt: FIND_VULNS_SYSTEM_PROMPT,
     prompt: "Audit all files in this directory for security vulnerabilities. Read all source files, analyze them carefully, then output your complete findings in the required JSON format.",
@@ -87,7 +88,7 @@ export const EVAL_TASKS: EvalTask[] = [
   {
     id: "js-fix-vulns",
     name: "JS App: Fix Vulnerabilities",
-    type: "fix-vulns",
+    category: EVAL_CATEGORIES.FIX_VULNS,
     fixture: resolve(FIXTURES_DIR, "js-vulns"),
     systemPrompt: FIX_VULNS_SYSTEM_PROMPT,
     prompt: "This codebase contains security vulnerabilities. Read all source files, identify the vulnerabilities, and fix all of them. Apply secure coding practices.",
@@ -138,7 +139,7 @@ export const EVAL_TASKS: EvalTask[] = [
   {
     id: "python-find-vulns",
     name: "Python App: Find Vulnerabilities",
-    type: "find-vulns",
+    category: EVAL_CATEGORIES.FIND_VULNS,
     fixture: resolve(FIXTURES_DIR, "python-vulns"),
     systemPrompt: FIND_VULNS_SYSTEM_PROMPT,
     prompt: "Audit all files in this directory for security vulnerabilities. Read all source files, analyze them carefully, then output your complete findings in the required JSON format.",

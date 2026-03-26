@@ -8,7 +8,7 @@ Benchmarking framework that runs AI coding agents (primarily Claude Code via the
 - Different MCP configurations (with/without security tools like Snyk, semgrep, etc.)
 - Different system prompts and agent configs
 
-## Primary Eval Types
+## Primary Eval Categories
 
 1. **find-vulns**: Given a codebase with known vulnerabilities, how many can the agent correctly identify?
 2. **fix-vulns**: Given a codebase with known vulnerabilities, how many can the agent correctly fix?
@@ -26,7 +26,7 @@ Benchmarking framework that runs AI coding agents (primarily Claude Code via the
 src/
   types.ts          # Core interfaces: EvalTask, RunConfig, BenchmarkMetrics, EvalResult
   runner.ts         # Agent SDK wrapper — runs a task and collects metrics
-  scorer.ts         # Scoring logic per eval type
+  scorer.ts         # Scoring logic per eval category
   reporter.ts       # Output to console table + JSONL
   evals/
     tasks.ts        # All eval task definitions with fixture paths and known vulnerabilities

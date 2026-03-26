@@ -22,12 +22,32 @@ export interface Vulnerability {
   description: string;
 }
 
-export type EvalType = "find-vulns" | "fix-vulns";
+export interface EvalCategory {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+}
+
+export const EVAL_CATEGORIES = {
+  FIND_VULNS: {
+    id: "find-vulns",
+    name: "Find Vulnerabilities",
+    description: "Agent identifies security vulnerabilities in code and reports findings",
+  },
+  FIX_VULNS: {
+    id: "fix-vulns",
+    name: "Fix Vulnerabilities",
+    description: "Agent remediates security vulnerabilities by editing source files",
+  },
+} as const satisfies Record<string, EvalCategory>;
+
+/** Union of all registered category id strings — expands automatically as categories are added. */
+export type EvalCategoryId = typeof EVAL_CATEGORIES[keyof typeof EVAL_CATEGORIES]["id"];
 
 export interface EvalTask {
   id: string;
   name: string;
-  type: EvalType;
+  category: EvalCategory;
   /** Path to fixture directory (relative to project root) */
   fixture: string;
   /** System prompt to inject */

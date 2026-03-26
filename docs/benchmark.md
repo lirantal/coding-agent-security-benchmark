@@ -7,7 +7,7 @@
    - [The Three Questions This Benchmark Answers](#the-three-questions-this-benchmark-answers)
    - [The Full Pipeline — Flowchart](#the-full-pipeline--flowchart)
    - [How Tasks and Configs Combine](#how-tasks-and-configs-combine)
-   - [The Two Eval Types](#the-two-eval-types)
+   - [The Two Eval Categories](#the-two-eval-categories)
 3. [Detailed Component Reference](#detailed-component-reference)
    - [Fixtures — The Test Cases](#fixtures--the-test-cases)
    - [EvalTask — What to Do](#evaltask--what-to-do)
@@ -53,7 +53,7 @@ flowchart TD
     pnpm run benchmark`"]) --> B
 
     subgraph SETUP["① Setup"]
-        B[Parse CLI args\n--type, --task, --config] --> C
+        B[Parse CLI args\n--category, --task, --config] --> C
         C[Select matching\nEvalTasks] --> D
         D[Select matching\nRunConfigs]
     end
@@ -157,17 +157,19 @@ Each cell in this matrix is one independent `EvalResult`. After all runs complet
 
 ---
 
-### The Two Eval Types (and How They Relate to Eval Tasks)
+### The Two Eval Categories (and How They Relate to Eval Tasks)
 
-An **Eval Type** is a category that determines the agent's goal and the scoring strategy. Each **Eval Task** belongs to exactly one type via its `type` field — so the type acts like a grouping tag on a flat list of tasks, not a separate data structure.
+An **Eval Category** (`EvalCategory`) is a first-class data structure that determines the agent's goal and the scoring strategy. Each **Eval Task** carries a `category` field pointing to one of the entries in the `EVAL_CATEGORIES` registry — so the category both groups tasks and carries its own metadata.
 
 ```
-Eval Type: "find-vulns"          Eval Type: "fix-vulns"
-  ├── EvalTask: js-find-vulns      └── EvalTask: js-fix-vulns
-  └── EvalTask: python-find-vulns
+EVAL_CATEGORIES.FIND_VULNS        EVAL_CATEGORIES.FIX_VULNS
+  { id: "find-vulns", name: ... }   { id: "fix-vulns", name: ... }
+         │                                    │
+         ├── EvalTask: js-find-vulns           └── EvalTask: js-fix-vulns
+         └── EvalTask: python-find-vulns
 ```
 
-The `--type` CLI flag filters the task list by this tag (e.g. `--type find-vulns` runs only the first group above).
+The `--category` CLI flag filters the task list by category id (e.g. `--category find-vulns` runs only the first group above). Adding a new category means adding one entry to `EVAL_CATEGORIES` in `src/types.ts` — `EvalCategoryId` expands automatically.
 
 The type also governs two other things beyond grouping:
 
@@ -247,7 +249,7 @@ An `EvalTask` is a complete description of one assignment to give an agent. Thin
 interface EvalTask {
   id: string;            // unique identifier, used in CLI filtering
   name: string;          // human-readable name for output
-  type: EvalType;        // "find-vulns" or "fix-vulns"
+  category: EvalCategory; // points to EVAL_CATEGORIES.FIND_VULNS or .FIX_VULNS
   fixture: string;       // path to the fixture directory
   systemPrompt?: string; // instructions injected before the task starts
   prompt: string;        // the main instruction sent to the agent
@@ -411,7 +413,7 @@ Different models use tools differently. A model that calls `Bash` 20 times and `
 
 **Location:** `src/scorer.ts`
 
-The scorer translates the agent's raw output into a number between 0 and 1. The logic is different for each eval type.
+The scorer translates the agent's raw output into a number between 0 and 1. The logic is different for each eval category.
 
 #### find-vulns Scoring
 

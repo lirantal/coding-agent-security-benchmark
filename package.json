@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "echo 'Use: pnpm run benchmark'",
     "benchmark": "tsx src/index.ts",
-    "benchmark:find": "tsx src/index.ts --type find-vulns",
-    "benchmark:fix": "tsx src/index.ts --type fix-vulns"
+    "benchmark:find": "tsx src/index.ts --category find-vulns",
+    "benchmark:fix": "tsx src/index.ts --category fix-vulns"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.84",
