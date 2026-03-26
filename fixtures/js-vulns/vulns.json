@@ -1,0 +1,46 @@
+{
+  "fixture": "js-vulns",
+  "description": "Intentionally vulnerable Express.js app for security benchmark testing",
+  "vulnerabilities": [
+    {
+      "id": "js-hardcoded-creds-1",
+      "type": "hardcoded-credentials",
+      "severity": "high",
+      "file": "app.js",
+      "line": 8,
+      "description": "Hardcoded database password in DB_CONFIG object"
+    },
+    {
+      "id": "js-sqli-1",
+      "type": "sql-injection",
+      "severity": "critical",
+      "file": "app.js",
+      "line": 28,
+      "description": "User input (req.query.username) directly concatenated into SQL query string"
+    },
+    {
+      "id": "js-xss-1",
+      "type": "xss",
+      "severity": "high",
+      "file": "app.js",
+      "line": 42,
+      "description": "Unsanitized req.query.name interpolated directly into HTML response"
+    },
+    {
+      "id": "js-path-traversal-1",
+      "type": "path-traversal",
+      "severity": "high",
+      "file": "app.js",
+      "line": 56,
+      "description": "User-controlled req.query.filename appended to base path without normalization"
+    },
+    {
+      "id": "js-cmd-injection-1",
+      "type": "command-injection",
+      "severity": "critical",
+      "file": "app.js",
+      "line": 70,
+      "description": "User-controlled req.query.host concatenated into shell command passed to exec()"
+    }
+  ]
+}

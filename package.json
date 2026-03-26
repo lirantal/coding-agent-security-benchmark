@@ -1,0 +1,21 @@
+{
+  "name": "coding-agent-security-benchmark",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'Use: pnpm run benchmark'",
+    "benchmark": "tsx src/index.ts",
+    "benchmark:find": "tsx src/index.ts --type find-vulns",
+    "benchmark:fix": "tsx src/index.ts --type fix-vulns"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.84",
+    "@anthropic-ai/sdk": "^0.80.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}

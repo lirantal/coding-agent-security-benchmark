@@ -1,0 +1,46 @@
+{
+  "fixture": "python-vulns",
+  "description": "Intentionally vulnerable Flask app for security benchmark testing",
+  "vulnerabilities": [
+    {
+      "id": "py-hardcoded-creds-1",
+      "type": "hardcoded-credentials",
+      "severity": "high",
+      "file": "app.py",
+      "line": 10,
+      "description": "SECRET_KEY hardcoded in source code, used for JWT/session signing"
+    },
+    {
+      "id": "py-sqli-1",
+      "type": "sql-injection",
+      "severity": "critical",
+      "file": "app.py",
+      "line": 32,
+      "description": "String % formatting used to embed user input (username) directly into SQL query"
+    },
+    {
+      "id": "py-cmd-injection-1",
+      "type": "command-injection",
+      "severity": "critical",
+      "file": "app.py",
+      "line": 48,
+      "description": "User-controlled host parameter concatenated into os.popen() shell command"
+    },
+    {
+      "id": "py-path-traversal-1",
+      "type": "path-traversal",
+      "severity": "high",
+      "file": "app.py",
+      "line": 62,
+      "description": "User-supplied filename concatenated to base_dir without os.path.realpath() validation"
+    },
+    {
+      "id": "py-deserialize-1",
+      "type": "insecure-deserialization",
+      "severity": "critical",
+      "file": "app.py",
+      "line": 76,
+      "description": "pickle.loads() called directly on untrusted user-supplied POST body data"
+    }
+  ]
+}
