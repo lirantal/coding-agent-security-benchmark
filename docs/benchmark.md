@@ -703,12 +703,30 @@ Or with an MCP security tool:
 ### Running a Specific Combination
 
 ```bash
-# One task, one config
+# All tasks, all configs (the full matrix)
+pnpm run benchmark
+
+# Filter by category — run every task in that category across all configs
+pnpm run benchmark -- --category find-vulns
+pnpm run benchmark -- --category fix-vulns
+
+# Shorthand scripts for the above two
+pnpm run benchmark:find
+pnpm run benchmark:fix
+
+# Filter by a specific task (one row of the matrix), across all configs
+pnpm run benchmark -- --task js-find-vulns
+
+# Filter by a specific config (one column of the matrix), across all tasks
+pnpm run benchmark -- --config opus-4-6
+
+# Combine filters — one task against one config (a single cell)
 pnpm run benchmark -- --task js-find-vulns --config sonnet-with-snyk
 
-# All find-vulns tasks across all configs
-pnpm run benchmark:find
+# Combine category + config — all find-vulns tasks against one config
+pnpm run benchmark -- --category find-vulns --config opus-4-6
 
-# Preview what would run without actually running
+# Preview what would run without actually running anything
 pnpm run benchmark -- --dry-run
+pnpm run benchmark -- --category fix-vulns --dry-run
 ```
