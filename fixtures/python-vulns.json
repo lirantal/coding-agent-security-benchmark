@@ -6,7 +6,7 @@
       "type": "hardcoded-credentials",
       "severity": "high",
       "file": "app.py",
-      "line": 10,
+      "line": 6,
       "description": "SECRET_KEY hardcoded in source code, used for JWT/session signing"
     },
     {
@@ -14,7 +14,7 @@
       "type": "sql-injection",
       "severity": "critical",
       "file": "app.py",
-      "line": 32,
+      "line": 19,
       "description": "String % formatting used to embed user input (username) directly into SQL query"
     },
     {
@@ -22,7 +22,7 @@
       "type": "command-injection",
       "severity": "critical",
       "file": "app.py",
-      "line": 48,
+      "line": 29,
       "description": "User-controlled host parameter concatenated into os.popen() shell command"
     },
     {
@@ -30,7 +30,7 @@
       "type": "path-traversal",
       "severity": "high",
       "file": "app.py",
-      "line": 62,
+      "line": 37,
       "description": "User-supplied filename concatenated to base_dir without os.path.realpath() validation"
     },
     {
@@ -38,7 +38,7 @@
       "type": "insecure-deserialization",
       "severity": "critical",
       "file": "app.py",
-      "line": 76,
+      "line": 45,
       "description": "pickle.loads() called directly on untrusted user-supplied POST body data"
     }
   ]

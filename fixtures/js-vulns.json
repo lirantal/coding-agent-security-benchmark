@@ -6,7 +6,7 @@
       "type": "hardcoded-credentials",
       "severity": "high",
       "file": "app.js",
-      "line": 8,
+      "line": 9,
       "description": "Hardcoded database password in DB_CONFIG object"
     },
     {
@@ -14,7 +14,7 @@
       "type": "sql-injection",
       "severity": "critical",
       "file": "app.js",
-      "line": 28,
+      "line": 24,
       "description": "User input (req.query.username) directly concatenated into SQL query string"
     },
     {
@@ -22,7 +22,7 @@
       "type": "xss",
       "severity": "high",
       "file": "app.js",
-      "line": 42,
+      "line": 31,
       "description": "Unsanitized req.query.name interpolated directly into HTML response"
     },
     {
@@ -30,7 +30,7 @@
       "type": "path-traversal",
       "severity": "high",
       "file": "app.js",
-      "line": 56,
+      "line": 37,
       "description": "User-controlled req.query.filename appended to base path without normalization"
     },
     {
@@ -38,7 +38,7 @@
       "type": "command-injection",
       "severity": "critical",
       "file": "app.js",
-      "line": 70,
+      "line": 45,
       "description": "User-controlled req.query.host concatenated into shell command passed to exec()"
     }
   ]
