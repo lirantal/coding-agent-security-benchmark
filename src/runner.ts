@@ -50,7 +50,12 @@ export async function runTask(
         cwd,
         model: config.model,
         maxTurns: task.maxTurns ?? config.maxTurns ?? 30,
-        allowedTools: ["Read", "Glob", "Grep", "Bash", "Write", "Edit"],
+        allowedTools: [
+          "Read", "Glob", "Grep", "Bash", "Write", "Edit",
+          // Allow all tools from every configured MCP server.
+          // Derived from config so adding a server in run-configs.json needs no code change.
+          ...Object.keys(config.mcpServers ?? {}).map((name) => `mcp__${name}__*`),
+        ],
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         // Restrict filesystem access to the fixture directory only.

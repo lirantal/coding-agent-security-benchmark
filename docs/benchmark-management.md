@@ -15,6 +15,7 @@ How to add new eval tasks, new fixtures, and new run configs — without touchin
 5. [Updating Run Configs](#updating-run-configs)
    - [Adding a new model config](#adding-a-new-model-config)
    - [Adding an MCP server config](#adding-an-mcp-server-config)
+   - [How MCP tool permissions work](#how-mcp-tool-permissions-work)
 6. [Run Config JSON Reference](#run-config-json-reference)
 7. [Worked Example: Adding a Ruby Fixture](#worked-example-adding-a-ruby-fixture)
 8. [Troubleshooting](#troubleshooting)
@@ -341,6 +342,28 @@ Another example — Snyk MCP with an API token from the environment:
 ```
 
 > **Note:** Environment variable interpolation in `env` values is handled by the Agent SDK at runtime. Make sure the variable is set in your shell before running.
+
+### How MCP tool permissions work
+
+The Agent SDK requires every tool the agent may call to be explicitly listed in `allowedTools`. MCP tools use the naming format `mcp__<server-name>__<tool-name>` — for example, a server named `"snyk"` exposing a `scan_file` tool becomes `mcp__snyk__scan_file`.
+
+**You do not need to list these manually.** The runner (`src/runner.ts`) automatically derives a wildcard entry for every MCP server in the config:
+
+```
+mcpServers: { "snyk": { ... } }
+→ allowedTools gets "mcp__snyk__*" added automatically
+```
+
+The wildcard `mcp__<server-name>__*` permits all tools that server exposes. This means adding a new MCP server to `run-configs.json` is sufficient — no changes to source code are needed.
+
+**Tool name reference** (if you ever need to allow specific tools rather than all of them):
+
+| Format | Effect |
+|---|---|
+| `mcp__snyk__*` | All tools from the `snyk` server |
+| `mcp__snyk__scan_file` | Only the `scan_file` tool from `snyk` |
+
+Restricting to specific tools (instead of the wildcard) is only worth doing if you want to measure the agent with a deliberately limited subset of an MCP server's capabilities.
 
 To compare a bare model against the same model with an MCP tool, keep both configs and run them together:
 
