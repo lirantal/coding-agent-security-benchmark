@@ -114,6 +114,7 @@ Results are saved to `results/benchmark-<timestamp>.jsonl`.
 - Each fixture has a sibling `fixtures/<name>.json` with ground-truth vulnerability metadata — kept outside the fixture directory so the agent cannot read the answer key
 - Run configs define model + MCP servers — comparison across configs is the core benchmark value
 - The `fix-vulns` eval works on temp copies; original fixtures are never modified
+- **The agent runner (`src/runner.ts`) must always sandbox the agent to its fixture `cwd`.** `sandbox.filesystem.allowWrite: [cwd]` is a hard whitelist — the agent cannot write outside the fixture dir. `sandbox.filesystem.denyRead: [dirname(cwd)]` blocks reading the parent directory (which contains the ground-truth answer-key JSONs and other fixtures). Do not remove or loosen these restrictions: without them the agent can read the answer key and invalidate every score.
 
 ## TODO
 

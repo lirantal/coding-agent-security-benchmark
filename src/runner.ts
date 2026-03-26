@@ -1,4 +1,5 @@
 import { query, type HookCallback } from "@anthropic-ai/claude-agent-sdk";
+import { dirname } from "path";
 import type { EvalTask, RunConfig, BenchmarkMetrics, ToolCallRecord } from "./types.js";
 
 export interface RunOutput {
@@ -52,6 +53,16 @@ export async function runTask(
         allowedTools: ["Read", "Glob", "Grep", "Bash", "Write", "Edit"],
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
+        // Restrict filesystem access to the fixture directory only.
+        // allowWrite is a whitelist — writes outside cwd are rejected outright.
+        // denyRead targets the parent directory (e.g. fixtures/) which contains
+        // sibling ground-truth JSONs and other fixture dirs the agent shouldn't see.
+        sandbox: {
+          filesystem: {
+            allowWrite: [cwd],
+            denyRead: [dirname(cwd)],
+          },
+        },
         mcpServers: config.mcpServers,
         systemPrompt: task.systemPrompt,
         hooks: {
