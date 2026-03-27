@@ -105,16 +105,24 @@ export interface RunConfig {
 export interface ToolCallRecord {
   tool: string;
   durationMs: number;
+  /** Estimated tokens in the tool's input parameters (approx. chars/4) */
+  inputTokensEst: number;
+  /** Estimated tokens in the tool's output/result (approx. chars/4) */
+  outputTokensEst: number;
 }
 
 export interface BenchmarkMetrics {
   sessionDurationMs: number;
   totalInputTokens: number;
   totalOutputTokens: number;
+  /** Tokens served from the prompt cache (billed at reduced rate but still consumed) */
+  totalCacheReadTokens: number;
+  /** Tokens written into the prompt cache on this session */
+  totalCacheCreationTokens: number;
   totalTurns: number;
   toolCalls: ToolCallRecord[];
   /** Aggregated per-tool stats */
-  toolStats: Record<string, { count: number; totalDurationMs: number }>;
+  toolStats: Record<string, { count: number; totalDurationMs: number; totalInputTokensEst: number; totalOutputTokensEst: number }>;
 }
 
 export interface FindVulnsDetails {

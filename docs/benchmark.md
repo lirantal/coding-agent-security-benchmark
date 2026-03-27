@@ -19,7 +19,17 @@
    - [EvalResult — The Final Record](#evalresult--the-final-record)
 4. [Worked Example: A Single Run](#worked-example-a-single-run)
 5. [Scoring Deep-Dive](#scoring-deep-dive)
-6. [Adding Your Own Tasks and Configs](#adding-your-own-tasks-and-configs)
+6. [Metrics Deep-Dive](#metrics-deep-dive)
+   - [Session-Level Token Accounting](#session-level-token-accounting)
+   - [SDK Message Structure and Deduplication](#sdk-message-structure-and-deduplication)
+   - [Cache Tokens](#cache-tokens)
+   - [Per-Tool Token Estimates](#per-tool-token-estimates)
+   - [Wall Time and Turns](#wall-time-and-turns)
+   - [Sample Output — find-vulns Run](#sample-output--find-vulns-run)
+   - [Sample Output — fix-vulns Run](#sample-output--fix-vulns-run)
+   - [Sample Output — Summary Table](#sample-output--summary-table)
+   - [Sample Output — JSONL Record](#sample-output--jsonl-record)
+7. [Adding Your Own Tasks and Configs](#adding-your-own-tasks-and-configs)
 
 ---
 
@@ -49,13 +59,12 @@ This is the end-to-end flow for a single run. A "run" is one combination of one 
 
 ```mermaid
 flowchart TD
-    A(["`**START**
-    pnpm run benchmark`"]) --> B
+    A(["**START** pnpm run benchmark"]) --> B
 
     subgraph SETUP["① Setup"]
-        B[Parse CLI args\n--category, --task, --config] --> C
-        C[Select matching\nEvalTasks] --> D
-        D[Select matching\nRunConfigs]
+        B["Parse CLI args\n--category, --task, --config"] --> C
+        C["Select matching\nEvalTasks"] --> D
+        D["Select matching\nRunConfigs"]
     end
 
     D --> E
@@ -124,13 +133,13 @@ The benchmark runs every task against every config. This is the **matrix of runs
 
 ```mermaid
 quadrantChart
-    title Run Matrix: Task × Config
-    x-axis "Find Vulns Tasks →"
-    y-axis "Fix Vulns Tasks ↑"
-    quadrant-1 "Fix tasks run here"
-    quadrant-2 "Fix tasks run here"
-    quadrant-3 "Find tasks run here"
-    quadrant-4 "Find tasks run here"
+    title Run Matrix: Task x Config
+    x-axis Find Vulns Tasks
+    y-axis Fix Vulns Tasks
+    quadrant-1 Fix tasks run here
+    quadrant-2 Fix tasks run here
+    quadrant-3 Find tasks run here
+    quadrant-4 Find tasks run here
 ```
 
 More concretely, with the default setup:
@@ -184,12 +193,12 @@ flowchart LR
 
     subgraph FX["fix-vulns"]
         direction TB
-        FX1["Agent reads &\nedits the files"] --> FX2
+        FX1["Agent reads and\nedits the files"] --> FX2
         FX2["Files are modified\nin a temp copy"] --> FX3
         FX3["Score: Haiku judges\neach fix"]
     end
 
-    FV -. "same fixture,\ndifferent goal" .-> FX
+    FV -. "same fixture, different goal" .-> FX
 ```
 
 **find-vulns** is like an exam where you're asked to *identify* problems. The agent reads the code and reports what it finds.
@@ -379,23 +388,37 @@ The runner uses `permissionMode: "bypassPermissions"` so that file reads and wri
 
 ### Metrics — What Was Measured
 
-**Location:** `src/types.ts` → `BenchmarkMetrics`
+**Location:** `src/types.ts` → `BenchmarkMetrics`, collected by `src/runner.ts`
 
-After a run completes, the runner returns a `BenchmarkMetrics` object:
+After a run completes, the runner returns a `BenchmarkMetrics` object containing everything measured during the agent session:
 
 ```typescript
 interface BenchmarkMetrics {
-  sessionDurationMs: number;   // wall clock time from first message to ResultMessage
-  totalInputTokens: number;    // sum of input tokens across all turns
-  totalOutputTokens: number;   // sum of output tokens across all turns
-  totalTurns: number;          // how many back-and-forth turns occurred
-  toolCalls: ToolCallRecord[]; // one entry per individual tool execution
-  toolStats: {                 // aggregated per tool name
+  sessionDurationMs: number;        // wall-clock ms from first query() call to ResultMessage
+  totalInputTokens: number;         // non-cached input tokens, summed across all turns
+  totalOutputTokens: number;        // output tokens generated, summed across all turns
+  totalCacheReadTokens: number;     // tokens served from prompt cache across all turns
+  totalCacheCreationTokens: number; // tokens written into prompt cache across all turns
+  totalTurns: number;               // number of assistant messages in the session
+  toolCalls: ToolCallRecord[];      // one entry per individual tool execution, in order
+  toolStats: {                      // per-tool aggregates
     [toolName: string]: {
-      count: number;           // how many times this tool was called
-      totalDurationMs: number; // total time spent in this tool
+      count: number;                // how many times this tool was called
+      totalDurationMs: number;      // total wall-clock time spent inside this tool
+      totalInputTokensEst: number;  // estimated tokens sent TO the tool (parameters)
+      totalOutputTokensEst: number; // estimated tokens returned FROM the tool (result)
     }
   };
+}
+```
+
+Each entry in `toolCalls`:
+```typescript
+interface ToolCallRecord {
+  tool: string;            // e.g. "Read", "Bash", "Grep"
+  durationMs: number;      // wall-clock ms the tool took to execute
+  inputTokensEst: number;  // estimated tokens in the tool's input parameters
+  outputTokensEst: number; // estimated tokens in the tool's output/result
 }
 ```
 
@@ -406,6 +429,8 @@ Different models use tools differently. A model that calls `Bash` 20 times and `
 - Used `Bash` to run static analysis tools (expensive, potentially powerful)
 - Used only `Read` + `Grep` (cheaper, simpler)
 - Called `Write`/`Edit` (only relevant for fix-vulns)
+
+See the [Metrics Deep-Dive](#metrics-deep-dive) section for a full explanation of how each field is collected and what the numbers mean.
 
 ---
 
@@ -463,7 +488,7 @@ flowchart TD
     A["Agent has edited files\nin temp fixture copy"] --> B
     B["Read all modified\nsource files"] --> C
     C["Build prompt for\nClaude Haiku:\n'Did this fix vuln X?\nDid this fix vuln Y?'"] --> D
-    D["Haiku responds with JSON:\n{ results: [\n  { id: 'js-sqli-1', fixed: true },\n  { id: 'js-xss-1', fixed: false }\n]}"] --> E
+    D["Haiku responds with JSON:\n{id: vuln-id, fixed: true/false}\nfor each known vuln"] --> E
     E["Count fixed / total\n= score"] --> F
     F["Score: 0.0 – 1.0"]
 ```
@@ -485,44 +510,18 @@ When the agent fixes vulnerabilities, it actually edits the source files. If it 
 
 **Location:** `src/reporter.ts`
 
-The reporter handles output. It has three functions:
+The reporter handles all output. It has three functions:
 
-**`printResult(result)`** — prints a detailed block for one run immediately after it completes:
-```
-──────────────────────────────────────────────────────────────────────
-Task:    JS App: Find Vulnerabilities
-Config:  Claude Opus 4.6 (no MCP)
-Score:   80%
-Tokens:  24,300 (in: 21,000, out: 3,300)
-Time:    18.4s  |  Turns: 7
+**`printResult(result)`** — prints a detailed block for one run immediately after it completes. See [Metrics Deep-Dive](#metrics-deep-dive) for annotated mock output.
 
-Recall:    80%  (4/5 known vulns found)
-Precision: 100% (0 false positives)
-Missed:    js-cmd-injection-1
-
-Top tools:
-  Read: 8x, avg 120ms
-  Grep: 4x, avg 95ms
-  Glob: 2x, avg 88ms
-```
-
-**`printSummaryTable(results)`** — prints a compact comparison table after all runs finish:
-```
-══════════════════════════════════════════════════════════════════════
-BENCHMARK SUMMARY
-══════════════════════════════════════════════════════════════════════
-Task                      Config              Score  Tokens   Time(s)
-────────────────────────  ──────────────────  ─────  ───────  ───────
-js-find-vulns             opus-4-6            80%    24300    18.4
-js-find-vulns             sonnet-4-6          60%    18200    14.1
-js-fix-vulns              opus-4-6            60%    41000    42.3
-python-find-vulns         opus-4-6            100%   22100    16.8
-```
+**`printSummaryTable(results)`** — prints a compact comparison table after all runs finish. Columns: task id, config id, score, total tokens (all four token types combined), wall time. See [Sample Output — Summary Table](#sample-output--summary-table).
 
 **`saveResults(results, dir)`** — writes each result as a JSON line to `results/benchmark-<timestamp>.jsonl`. JSONL (JSON Lines) format means one complete JSON object per line, making it easy to:
 - Load into analysis tools (Python pandas, etc.)
 - Append new results without re-reading old ones
 - Query with `jq` from the command line
+
+See [Sample Output — JSONL Record](#sample-output--jsonl-record) for the full structure of one record.
 
 ---
 
@@ -659,6 +658,293 @@ The scorer matches agent findings to known vulnerabilities by their **type**, no
 - Each known vuln can only be matched once (no double-counting)
 
 If you add a fixture with two different SQL injections in the same file, give them different IDs (`sqli-1`, `sqli-2`) and the scorer will correctly track them separately.
+
+---
+
+## Metrics Deep-Dive
+
+This section explains every metric the benchmark collects, how each one is captured, and what the numbers mean when you read a report.
+
+---
+
+### Session-Level Token Accounting
+
+The Anthropic API reports token usage on every API call. The runner accumulates these across the full session:
+
+```
+Turn 1 (system prompt + user message):
+  input_tokens: 1,840   output_tokens: 420
+
+Turn 2 (context + tool results from turn 1):
+  input_tokens:   210   output_tokens: 180   cache_read_input_tokens: 1,840
+
+Turn 3 (context + tool results from turns 1–2):
+  input_tokens:   180   output_tokens: 920   cache_read_input_tokens: 2,260
+  ...
+
+Session totals (summed across all turns):
+  totalInputTokens:       2,230   ← new non-cached tokens across all turns
+  totalOutputTokens:      1,520   ← all tokens Claude generated
+  totalCacheReadTokens:   9,460   ← context tokens served from cache
+  totalCacheCreationTokens: 1,840 ← tokens written into cache on turn 1
+```
+
+**Important:** the four token fields represent *different things* and must all be counted to understand true session cost:
+
+| Field | What it counts | Billing rate |
+|---|---|---|
+| `totalInputTokens` | New non-cached input tokens per turn | Full input rate |
+| `totalOutputTokens` | All tokens Claude generated | Output rate |
+| `totalCacheReadTokens` | Context tokens served from the prompt cache | ~10% of input rate |
+| `totalCacheCreationTokens` | Tokens written into the cache for the first time | ~125% of input rate |
+
+The `Tokens: N total` line in the report sums all four to give you the full picture of context consumed.
+
+**Why not just read usage from the final ResultMessage?** The ResultMessage's `usage` field contains only the cost of that final "done" turn — a few tokens — not a session cumulative total. Using it would silently overwrite all the accumulated per-turn data with a misleadingly small number. The runner explicitly accumulates only from `AssistantMessage` turns.
+
+---
+
+### SDK Message Structure and Deduplication
+
+This is a critical implementation detail. **The Agent SDK emits one `SDKAssistantMessage` event per content block in an API response — not one per API call.** A single Claude API response containing both a thinking block and a tool_use block fires two separate events, each carrying the *same* `usage` object:
+
+```
+API call returns:  content=[thinking, tool_use]  usage={in:3, out:54, cr:9845}
+
+SDK emits:
+  SDKAssistantMessage #1  content=[thinking]  usage={in:3, out:54, cr:9845}
+  SDKAssistantMessage #2  content=[tool_use]  usage={in:3, out:54, cr:9845}
+```
+
+If you naively accumulate `usage.output_tokens` on every event, those 54 tokens get counted twice. The Anthropic API billed you once; you'd record it twice.
+
+**The fix — deduplication by session and usage fingerprint:**
+
+The runner tracks the last-seen usage fingerprint keyed by `parent_tool_use_id` (which session level the message belongs to). It only accumulates when the fingerprint changes:
+
+```typescript
+const sessionKey = message.parent_tool_use_id ?? null;
+const usageKey = `${in}:${out}:${cr}:${cw}`;
+if (lastUsagePerSession.get(sessionKey) !== usageKey) {
+  lastUsagePerSession.set(sessionKey, usageKey);
+  // accumulate tokens and increment turn counter
+}
+```
+
+This guarantees each unique API call is counted exactly once regardless of how many content blocks it produced.
+
+**Sub-agent sessions:** The Claude Code `Agent` built-in tool spawns a nested sub-agent session. That sub-session's messages stream through the same `query()` iterator with `parent_tool_use_id` set to the parent's tool call ID. Sub-agent usage IS counted in the session totals — these are real API calls with real cost — and deduplication handles them correctly because they are tracked under their own `parent_tool_use_id` key, separate from the root session.
+
+**What `totalTurns` counts:** unique API calls, after deduplication. Not content blocks, not SDK events. A turn where Claude responds with `[thinking, tool_use, tool_use]` counts as one turn.
+
+---
+
+### Cache Tokens
+
+**Short answer: yes, cache tokens count — they represent real cost, just at heavily discounted rates.**
+
+Prompt caching is an automatic Anthropic API feature. When the same prefix (system prompt + early conversation context) appears in multiple consecutive API calls, the API stores that prefix on Anthropic's servers after the first call. Subsequent calls that reuse the same prefix pay a fraction of the normal input rate instead of re-processing it from scratch. No benchmark code configuration is needed — the Claude Code subprocess triggers it automatically.
+
+There are two sides to the cache economy:
+
+| Token type | When it appears | Billing rate |
+|---|---|---|
+| `totalCacheCreationTokens` | First call that establishes the cached prefix | ~125% of input rate |
+| `totalCacheReadTokens` | Every subsequent call that reads from the cache | ~10% of input rate |
+
+In a typical multi-turn benchmark session the system prompt (~500 tokens) plus the fixture code (~300 tokens) get cached after turn 1. Turns 2 onward each read ~800 tokens from cache instead of paying full input rate. This means `totalCacheReadTokens` can easily be 5–10× larger than `totalInputTokens` in a long session — the bulk of context consumed is cheap cache reads.
+
+The "Tokens" line in the report sums all four fields so the total reflects full context consumed:
+```
+Tokens:  18,432 total  (in: 4,210, out: 1,820  cache-read: 11,900, cache-write: 502)
+```
+
+If no caching occurred (e.g. a very short single-turn session), the cache fields are omitted:
+```
+Tokens:  6,030 total  (in: 4,210, out: 1,820)
+```
+
+**Important for benchmarking:** The `N total` figure is *context consumed*, not *cost*. Because cache-read tokens bill at ~10% of the input rate, two runs that did the same logical work but had different cache hit rates will show very different totals. To compare actual cost across runs, weight each field by its billing rate rather than summing raw counts. For within-session comparisons (same model, same fixture, different configs), total tokens is a reasonable proxy because cache behavior is roughly symmetric.
+
+Prompt caching activates automatically when the cacheable prefix is at least 1,024 tokens. Below that threshold `totalCacheReadTokens` and `totalCacheCreationTokens` will both be 0 even in multi-turn sessions.
+
+---
+
+### Per-Tool Token Estimates
+
+The Anthropic API reports tokens at the *turn* level, not per individual tool call within a turn. To give per-tool token insight, the runner estimates token counts from content size in the `PostToolUse` hook:
+
+```
+inputTokensEst  = ceil(JSON.stringify(tool_input).length  / 4)
+outputTokensEst = ceil(JSON.stringify(tool_result).length / 4)
+```
+
+The `/ 4` approximation is the standard rule-of-thumb for English text (one token ≈ 4 characters). These are labelled `(est)` in the report to indicate they are estimates, not exact API-measured values.
+
+**What the estimates tell you:** Even as approximations, per-tool token estimates reveal which tools dominate context growth. A single `Read` call on a 500-line file returns ~2,500 estimated output tokens — that content lands in the next turn's input. Multiple such reads compound quickly and explain why `totalCacheReadTokens` grows as the session progresses.
+
+`toolStats` aggregates these across all calls to the same tool:
+```typescript
+toolStats["Read"] = {
+  count: 4,
+  totalDurationMs: 44,
+  totalInputTokensEst: 320,    // total tokens in Read parameters (filename strings)
+  totalOutputTokensEst: 8240,  // total tokens in file contents returned
+}
+```
+
+---
+
+### Wall Time and Turns
+
+- **`sessionDurationMs`** — measured from just before `query()` is called to when the async iterator returns. It includes all API round-trips, tool execution time, and any local processing. It is wall-clock time, not CPU time.
+
+- **`totalTurns`** — the count of unique API calls made across the session, after deduplication (see [SDK Message Structure and Deduplication](#sdk-message-structure-and-deduplication)). This includes both the root session and any sub-agent sessions spawned via the `Agent` tool. A high turn count with low output tokens per turn suggests the agent is doing many small tool calls; a low turn count with high output tokens suggests longer reasoning blocks. Note: because sub-agent turns are included, `totalTurns` can exceed what you'd count from the console output alone.
+
+- **Per-tool `durationMs`** — measured from the `PreToolUse` hook firing to the `PostToolUse` hook firing. For `Read`/`Grep`/`Glob` this is filesystem I/O time. For `Bash` it includes subprocess spin-up and command execution. For `Write`/`Edit` it is the disk write time.
+
+---
+
+### Sample Output — find-vulns Run
+
+This is what `printResult()` produces immediately after each run completes. Annotations in `← ...` are for this doc only and do not appear in real output.
+
+```
+──────────────────────────────────────────────────────────────────────
+Task:    JS App: Find Vulnerabilities          ← task name from EvalTask
+Config:  Claude Opus 4.6 (no MCP)             ← run config name
+Score:   89%                                  ← F1 score (precision × recall harmonic mean)
+Tokens:  18,432 total  (in: 4,210, out: 1,820  cache-read: 11,900, cache-write: 502)
+                        ↑ new non-cached       ↑ from prompt cache    ↑ cache written
+Time:    24.8s  |  Turns: 6                   ← wall time | AssistantMessage count
+
+Recall:    100%  (5/5 known vulns found)       ← fraction of ground-truth vulns identified
+Precision: 83%   (1 false positives)           ← fraction of reported findings that were real
+Missed:    none                                ← IDs of any vulns not found (none here)
+
+Top tools:                                     ← top 5 by call count
+  Read: 4x, avg 11ms, ~320 in / ~8,240 out tokens (est)
+  Bash: 3x, avg 53ms, ~45 in / ~180 out tokens (est)
+  Grep: 2x, avg 8ms, ~28 in / ~640 out tokens (est)
+```
+
+**Reading the token line:**
+- `in: 4,210` — new context tokens paid at full rate across all 6 turns
+- `out: 1,820` — tokens Claude generated (reasoning + tool calls + final answer)
+- `cache-read: 11,900` — repeated context (system prompt, fixture code) served from cache
+- `cache-write: 502` — context written into cache on the first turn
+- `18,432 total` — everything added together
+
+**Reading the tool line:**
+- `Read: 4x` — called 4 times
+- `avg 11ms` — average wall-clock time per call
+- `~320 in` — estimated tokens in the 4 filename parameters combined
+- `~8,240 out` — estimated tokens in the 4 file contents returned (this lands in context next turn)
+
+---
+
+### Sample Output — fix-vulns Run
+
+```
+──────────────────────────────────────────────────────────────────────
+Task:    JS App: Fix Vulnerabilities
+Config:  Claude Sonnet 4.6 (no MCP)
+Score:   80%
+Tokens:  42,100 total  (in: 8,400, out: 3,600  cache-read: 28,900, cache-write: 1,200)
+Time:    48.2s  |  Turns: 12
+
+Fixed:  4/5 vulnerabilities
+Notes:  Fixed SQL injection (parameterized queries), XSS (output escaping), path traversal
+        (realpath validation), and hardcoded credentials (env vars). Command injection fix
+        was incomplete — exec() replaced with spawn() but args still concatenated.
+
+Top tools:
+  Read:  6x, avg 9ms,  ~280 in / ~9,100 out tokens (est)
+  Edit:  5x, avg 22ms, ~1,840 in / ~12 out tokens (est)
+  Bash:  2x, avg 41ms, ~35 in / ~95 out tokens (est)
+  Glob:  1x, avg 6ms,  ~8 in / ~120 out tokens (est)
+```
+
+Note the `Edit` tool profile: high input tokens (the before/after diff content) and near-zero output tokens (it returns just a success indicator). This is the inverse of `Read`, which has small inputs (just the filename) and large outputs (the file contents).
+
+---
+
+### Sample Output — Summary Table
+
+After all runs complete, `printSummaryTable()` prints a comparison across the full task × config matrix. The **Tokens** column is the same four-field total used in the per-run block.
+
+```
+══════════════════════════════════════════════════════════════════════
+BENCHMARK SUMMARY
+══════════════════════════════════════════════════════════════════════
+Task                      Config              Score  Tokens   Time(s)
+────────────────────────  ──────────────────  ─────  ───────  ───────
+js-find-vulns             opus-4-6            89%    18432    24.8
+js-find-vulns             sonnet-4-6          72%    14210    19.3
+js-fix-vulns              sonnet-4-6          80%    42100    48.2
+python-find-vulns         opus-4-6            100%   22800    28.1
+python-find-vulns         sonnet-4-6          80%    19400    21.7
+```
+
+Reading across a row (same task, different configs) tells you which model/tool combination performs better and at what cost. Reading down a column (same config, different tasks) tells you how a given model handles different languages and vulnerability types.
+
+---
+
+### Sample Output — JSONL Record
+
+Each run appends one JSON object to `results/benchmark-<timestamp>.jsonl`. This is the complete record — everything the console shows plus the raw data behind it:
+
+```json
+{
+  "taskId": "js-find-vulns",
+  "taskName": "JS App: Find Vulnerabilities",
+  "runConfigId": "opus-4-6",
+  "runConfigName": "Claude Opus 4.6 (no MCP)",
+  "score": 0.888,
+  "timestamp": "2026-03-26T21:49:22.964Z",
+  "metrics": {
+    "sessionDurationMs": 24800,
+    "totalInputTokens": 4210,
+    "totalOutputTokens": 1820,
+    "totalCacheReadTokens": 11900,
+    "totalCacheCreationTokens": 502,
+    "totalTurns": 6,
+    "toolCalls": [
+      { "tool": "Read", "durationMs": 12, "inputTokensEst": 8, "outputTokensEst": 2100 },
+      { "tool": "Bash", "durationMs": 61, "inputTokensEst": 18, "outputTokensEst": 42 },
+      { "tool": "Read", "durationMs": 9,  "inputTokensEst": 8, "outputTokensEst": 2180 }
+    ],
+    "toolStats": {
+      "Read": { "count": 4, "totalDurationMs": 44, "totalInputTokensEst": 320, "totalOutputTokensEst": 8240 },
+      "Bash": { "count": 3, "totalDurationMs": 159, "totalInputTokensEst": 45, "totalOutputTokensEst": 180 },
+      "Grep": { "count": 2, "totalDurationMs": 16, "totalInputTokensEst": 28, "totalOutputTokensEst": 640 }
+    }
+  },
+  "details": {
+    "agentFindings": [
+      { "type": "sql-injection", "file": "app.js", "line": 24, "severity": "critical", "description": "..." },
+      { "type": "xss", "file": "app.js", "line": 31, "severity": "high", "description": "..." }
+    ],
+    "truePositives": ["js-sqli-1", "js-xss-1", "js-path-traversal-1", "js-hardcoded-creds-1", "js-cmd-injection-1"],
+    "falsePositives": 1,
+    "falseNegatives": [],
+    "precision": 0.833,
+    "recall": 1.0
+  }
+}
+```
+
+The JSONL file can be queried directly:
+```bash
+# Show all scores
+jq '.score' results/benchmark-*.jsonl
+
+# Compare token costs across configs for the same task
+jq 'select(.taskId == "js-find-vulns") | {config: .runConfigId, tokens: (.metrics.totalInputTokens + .metrics.totalOutputTokens + .metrics.totalCacheReadTokens + .metrics.totalCacheCreationTokens)}' results/benchmark-*.jsonl
+
+# Find the most-used tool across all runs
+jq '.metrics.toolStats | to_entries | max_by(.value.count) | .key' results/benchmark-*.jsonl
+```
 
 ---
 

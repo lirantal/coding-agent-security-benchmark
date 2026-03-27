@@ -94,7 +94,12 @@ From the chat-summary.txt context:
 
 ## Authentication
 
-The Agent SDK uses `ANTHROPIC_API_KEY` from environment (injected by devcontainer). The CLI uses the same key.
+The Agent SDK works by spawning the `claude` CLI binary as a subprocess — it does not call the Anthropic API directly. Authentication therefore follows whatever the Claude Code CLI has configured, which can be either:
+
+- **`ANTHROPIC_API_KEY`** environment variable (inherited by the subprocess), or
+- **OAuth login** stored by the CLI (`claude auth login`)
+
+Run `claude auth status` to see which is active. Either works; no special setup is needed beyond having the CLI authenticated.
 
 ## Running Benchmarks
 
@@ -119,3 +124,4 @@ Results are saved to `results/benchmark-<timestamp>.jsonl`.
 ## TODO
 
 - [x] Create `docs/benchmark-management.md` — guide for adding new eval tasks (fixture layout, vulns.json schema, task JSON fields, step-by-step walkthrough) and updating run configs (fields reference, MCP server example)
+- [ ] **Explore replacing the Agent SDK with a direct Anthropic API agentic loop** — The current `src/runner.ts` uses `@anthropic-ai/claude-agent-sdk` which works by spawning the `claude` CLI binary as a subprocess. This creates a hard dependency on Claude Code CLI being installed and authenticated. An alternative is to build the agentic loop directly against `@anthropic-ai/sdk` (already a dependency): call `messages.create()` in a loop, manually execute tool calls (Read, Glob, Grep, Bash, Write, Edit) on the local filesystem, and feed results back as `tool_result` blocks — no CLI required. Key things to figure out: (1) whether the built-in Claude Code tools (Read, Glob, Grep, etc.) are available as server-side tools in the raw API or need to be reimplemented as local functions, (2) how to replicate the per-tool timing hooks currently done via `PreToolUse`/`PostToolUse`, (3) whether MCP server support is available without the CLI. See `src/runner.ts` for current implementation and `src/types.ts` for the `BenchmarkMetrics` shape that any new runner must produce.

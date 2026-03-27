@@ -131,8 +131,13 @@ async function main() {
   }
 
   console.log(`\nBenchmark: ${tasks.length} task(s) × ${configs.length} config(s) = ${tasks.length * configs.length} run(s)`);
-  for (const task of tasks) console.log(`  • ${task.id} [${task.category.id}]`);
-  for (const config of configs) console.log(`  • ${config.id}: ${config.model}`);
+  for (const task of tasks) {
+    console.log(`  ${task.id}  [${task.category.id}]`);
+    for (let i = 0; i < configs.length; i++) {
+      const prefix = i === configs.length - 1 ? "  └─" : "  ├─";
+      console.log(`${prefix} ${configs[i].id}: ${configs[i].model}`);
+    }
+  }
 
   if (opts.dryRun) {
     console.log("\nDry run — exiting.");

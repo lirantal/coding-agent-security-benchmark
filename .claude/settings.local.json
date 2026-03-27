@@ -12,7 +12,8 @@
       "Bash(npx tsx:*)",
       "WebSearch",
       "WebFetch(domain:docs.anthropic.com)",
-      "WebFetch(domain:docs.claude.com)"
+      "WebFetch(domain:docs.claude.com)",
+      "Bash(find /workspaces/coding-agent-security-benchmark/node_modules/.pnpm/@anthropic-ai+claude-agent-sdk*/node_modules/@anthropic-ai/claude-agent-sdk -name \"*.d.ts\")"
     ]
   }
 }

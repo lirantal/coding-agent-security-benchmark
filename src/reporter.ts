@@ -4,16 +4,21 @@ import type { EvalResult, FindVulnsDetails, FixVulnsDetails } from "./types.js";
 
 export function printResult(result: EvalResult): void {
   const status = result.error ? "ERROR" : `${(result.score * 100).toFixed(0)}%`;
-  const tokens = result.metrics.totalInputTokens + result.metrics.totalOutputTokens;
-  const durationSec = (result.metrics.sessionDurationMs / 1000).toFixed(1);
+  const m = result.metrics;
+  const totalTokens = m.totalInputTokens + m.totalOutputTokens + m.totalCacheReadTokens + m.totalCacheCreationTokens;
+  const durationSec = (m.sessionDurationMs / 1000).toFixed(1);
+
+  const cacheDetail = (m.totalCacheReadTokens > 0 || m.totalCacheCreationTokens > 0)
+    ? `  cache-read: ${m.totalCacheReadTokens.toLocaleString()}, cache-write: ${m.totalCacheCreationTokens.toLocaleString()}`
+    : "";
 
   console.log(
     `\n${"─".repeat(70)}\n` +
     `Task:    ${result.taskName}\n` +
     `Config:  ${result.runConfigName}\n` +
     `Score:   ${status}\n` +
-    `Tokens:  ${tokens.toLocaleString()} (in: ${result.metrics.totalInputTokens.toLocaleString()}, out: ${result.metrics.totalOutputTokens.toLocaleString()})\n` +
-    `Time:    ${durationSec}s  |  Turns: ${result.metrics.totalTurns}\n`,
+    `Tokens:  ${totalTokens.toLocaleString()} total  (in: ${m.totalInputTokens.toLocaleString()}, out: ${m.totalOutputTokens.toLocaleString()}${cacheDetail})\n` +
+    `Time:    ${durationSec}s  |  Turns: ${m.totalTurns}\n`,
   );
 
   if (result.error) {
@@ -37,14 +42,16 @@ export function printResult(result: EvalResult): void {
     );
   }
 
-  // Print top tool stats
+  // Print all tool stats sorted by call count
   const topTools = Object.entries(result.metrics.toolStats)
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 5);
+    .sort((a, b) => b[1].count - a[1].count);
   if (topTools.length > 0) {
-    console.log("Top tools:");
+    console.log("All tools:");
     for (const [tool, stats] of topTools) {
-      console.log(`  ${tool}: ${stats.count}x, avg ${(stats.totalDurationMs / stats.count).toFixed(0)}ms`);
+      const avgMs = (stats.totalDurationMs / stats.count).toFixed(0);
+      const tokIn = stats.totalInputTokensEst.toLocaleString();
+      const tokOut = stats.totalOutputTokensEst.toLocaleString();
+      console.log(`  ${tool}: ${stats.count}x, avg ${avgMs}ms, ~${tokIn} in / ~${tokOut} out tokens (est)`);
     }
   }
 }
@@ -73,7 +80,7 @@ export function printSummaryTable(results: EvalResult[]): void {
     r.taskId.slice(0, 24),
     r.runConfigId.slice(0, 18),
     r.error ? "ERROR" : `${(r.score * 100).toFixed(0)}%`,
-    String(r.metrics.totalInputTokens + r.metrics.totalOutputTokens),
+    String(r.metrics.totalInputTokens + r.metrics.totalOutputTokens + r.metrics.totalCacheReadTokens + r.metrics.totalCacheCreationTokens),
     (r.metrics.sessionDurationMs / 1000).toFixed(1),
   ]);
 
