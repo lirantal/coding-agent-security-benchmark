@@ -3,6 +3,8 @@ import { join } from "path";
 import type { EvalResult, FindVulnsDetails, FixVulnsDetails } from "./types.js";
 
 export function printResult(result: EvalResult): void {
+  const isFindVulns = !result.error && "recall" in result.details;
+  const scoreLabel = isFindVulns ? "Score (F1):" : "Score:     ";
   const status = result.error ? "ERROR" : `${(result.score * 100).toFixed(0)}%`;
   const m = result.metrics;
   const totalTokens = m.totalInputTokens + m.totalOutputTokens + m.totalCacheReadTokens + m.totalCacheCreationTokens;
@@ -16,7 +18,7 @@ export function printResult(result: EvalResult): void {
     `\n${"─".repeat(70)}\n` +
     `Task:    ${result.taskName}\n` +
     `Config:  ${result.runConfigName}\n` +
-    `Score:   ${status}\n` +
+    `${scoreLabel} ${status}\n` +
     `Tokens:  ${totalTokens.toLocaleString()} total  (in: ${m.totalInputTokens.toLocaleString()}, out: ${m.totalOutputTokens.toLocaleString()}${cacheDetail})\n` +
     `Time:    ${durationSec}s  |  Turns: ${m.totalTurns}  |  Files: ${m.filesScanned.length}\n`,
   );

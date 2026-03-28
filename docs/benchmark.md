@@ -676,7 +676,7 @@ Every metric the benchmark produces, at a glance. The "Report line" column shows
 
 | Metric | Report line | JSONL field | What it means |
 |---|---|---|---|
-| **Score (F1)** | `Score: X%` | `score` | Harmonic mean of precision and recall — the headline quality number |
+| **Score (F1)** | `Score (F1): X%` | `score` | Harmonic mean of precision and recall — the headline quality number |
 | **Recall** | `Recall: X% (N/M found)` | `details.recall` | Fraction of real vulns the agent found |
 | **Precision** | `Precision: X% (N false positives)` | `details.precision` | Fraction of agent's findings that were real |
 | **True positives** | Implicit in recall line | `details.truePositives` | IDs of real vulns correctly identified |
