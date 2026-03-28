@@ -123,6 +123,8 @@ export interface BenchmarkMetrics {
   toolCalls: ToolCallRecord[];
   /** Aggregated per-tool stats */
   toolStats: Record<string, { count: number; totalDurationMs: number; totalInputTokensEst: number; totalOutputTokensEst: number }>;
+  /** Unique file paths touched by Read, Write, or Edit tool calls */
+  filesScanned: string[];
 }
 
 export interface FindVulnsDetails {

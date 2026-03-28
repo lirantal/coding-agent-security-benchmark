@@ -20,6 +20,7 @@
 4. [Worked Example: A Single Run](#worked-example-a-single-run)
 5. [Scoring Deep-Dive](#scoring-deep-dive)
 6. [Metrics Deep-Dive](#metrics-deep-dive)
+   - [Metrics Quick Reference](#metrics-quick-reference)
    - [Session-Level Token Accounting](#session-level-token-accounting)
    - [SDK Message Structure and Deduplication](#sdk-message-structure-and-deduplication)
    - [Cache Tokens](#cache-tokens)
@@ -664,6 +665,51 @@ If you add a fixture with two different SQL injections in the same file, give th
 ## Metrics Deep-Dive
 
 This section explains every metric the benchmark collects, how each one is captured, and what the numbers mean when you read a report.
+
+---
+
+### Metrics Quick Reference
+
+Every metric the benchmark produces, at a glance. The "Report line" column shows where it appears in the console output; "JSONL field" shows the key path in the saved result file.
+
+#### Quality metrics (find-vulns)
+
+| Metric | Report line | JSONL field | What it means |
+|---|---|---|---|
+| **Score (F1)** | `Score: X%` | `score` | Harmonic mean of precision and recall — the headline quality number |
+| **Recall** | `Recall: X% (N/M found)` | `details.recall` | Fraction of real vulns the agent found |
+| **Precision** | `Precision: X% (N false positives)` | `details.precision` | Fraction of agent's findings that were real |
+| **True positives** | Implicit in recall line | `details.truePositives` | IDs of real vulns correctly identified |
+| **False positives** | `(N false positives)` | `details.falsePositives` | Count of agent findings with no matching ground-truth vuln |
+| **False negatives** | `Missed: id1, id2` | `details.falseNegatives` | IDs of real vulns the agent did not find |
+
+#### Quality metrics (fix-vulns)
+
+| Metric | Report line | JSONL field | What it means |
+|---|---|---|---|
+| **Score** | `Score: X%` | `score` | Fraction of known vulns confirmed fixed by the LLM judge |
+| **Vulns fixed** | `Fixed: N/M` | `details.vulnsFixed` | Count confirmed remediated |
+| **Vulns attempted** | `Fixed: N/M` | `details.vulnsAttempted` | Total known vulns in the fixture |
+| **Judge notes** | `Notes: ...` | `details.judgeNotes` | Per-vuln verdict from the LLM judge (Claude Haiku) |
+
+#### Session metrics (all eval types)
+
+| Metric | Report line | JSONL field | What it means |
+|---|---|---|---|
+| **Wall time** | `Time: Xs` | `metrics.sessionDurationMs` | Clock time from query start to finish, including all API round-trips and tool execution |
+| **Turns** | `Turns: N` | `metrics.totalTurns` | Unique API calls made (after dedup — see [SDK Message Structure](#sdk-message-structure-and-deduplication)) |
+| **Files scanned** | `Files: N` | `metrics.filesScanned` | Distinct file paths touched by Read/Write/Edit; proxy for codebase exploration depth |
+| **Input tokens** | `in: N` | `metrics.totalInputTokens` | New non-cached input tokens across all turns |
+| **Output tokens** | `out: N` | `metrics.totalOutputTokens` | All tokens Claude generated across all turns |
+| **Cache-read tokens** | `cache-read: N` | `metrics.totalCacheReadTokens` | Context served from prompt cache (~10% billing rate) |
+| **Cache-write tokens** | `cache-write: N` | `metrics.totalCacheCreationTokens` | Context written into prompt cache (~125% billing rate) |
+| **Total tokens** | `N total` | sum of the four above | Total context consumed — not a direct cost proxy (see [Cache Tokens](#cache-tokens)) |
+| **Total tool calls** | `(N calls across M types)` | sum of `metrics.toolStats[*].count` | Grand total tool invocations across the session |
+| **Tool types used** | `(N calls across M types)` | `Object.keys(metrics.toolStats).length` | Number of distinct tool types called |
+| **Per-tool call count** | `Read: Nx` | `metrics.toolStats[name].count` | How many times each specific tool was called |
+| **Per-tool avg duration** | `avg Nms` | `metrics.toolStats[name].totalDurationMs` | Total duration ÷ count; time each tool type spent executing |
+| **Per-tool input tokens (est)** | `~N in tokens (est)` | `metrics.toolStats[name].totalInputTokensEst` | Estimated tokens in tool parameters (chars/4) |
+| **Per-tool output tokens (est)** | `~N out tokens (est)` | `metrics.toolStats[name].totalOutputTokensEst` | Estimated tokens in tool results (chars/4) |
 
 ---
 

@@ -18,7 +18,7 @@ export function printResult(result: EvalResult): void {
     `Config:  ${result.runConfigName}\n` +
     `Score:   ${status}\n` +
     `Tokens:  ${totalTokens.toLocaleString()} total  (in: ${m.totalInputTokens.toLocaleString()}, out: ${m.totalOutputTokens.toLocaleString()}${cacheDetail})\n` +
-    `Time:    ${durationSec}s  |  Turns: ${m.totalTurns}\n`,
+    `Time:    ${durationSec}s  |  Turns: ${m.totalTurns}  |  Files: ${m.filesScanned.length}\n`,
   );
 
   if (result.error) {
@@ -46,7 +46,8 @@ export function printResult(result: EvalResult): void {
   const topTools = Object.entries(result.metrics.toolStats)
     .sort((a, b) => b[1].count - a[1].count);
   if (topTools.length > 0) {
-    console.log("All tools:");
+    const totalCalls = topTools.reduce((sum, [, s]) => sum + s.count, 0);
+    console.log(`All tools:  (${totalCalls} calls across ${topTools.length} tool types)`);
     for (const [tool, stats] of topTools) {
       const avgMs = (stats.totalDurationMs / stats.count).toFixed(0);
       const tokIn = stats.totalInputTokensEst.toLocaleString();

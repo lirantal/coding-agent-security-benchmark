@@ -19,6 +19,7 @@ export async function runTask(
 ): Promise<RunOutput> {
   const toolCalls: ToolCallRecord[] = [];
   const toolStartTimes = new Map<string, number>();
+  const filesScannedSet = new Set<string>();
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let totalCacheReadTokens = 0;
@@ -44,6 +45,11 @@ export async function runTask(
     const inputTokensEst = estimateTokens((input as any).tool_input);
     const outputTokensEst = estimateTokens((input as any).tool_response ?? (input as any).tool_result);
     toolCalls.push({ tool, durationMs: Date.now() - startTime, inputTokensEst, outputTokensEst });
+    // Track unique files touched by filesystem tools
+    if (tool === "Read" || tool === "Write" || tool === "Edit") {
+      const filePath = (input as any).tool_input?.file_path;
+      if (filePath) filesScannedSet.add(filePath);
+    }
     toolStartTimes.delete(id);
     return {};
   };
@@ -122,14 +128,14 @@ export async function runTask(
   } catch (err) {
     return {
       finalText,
-      metrics: buildMetrics(sessionStart, totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens, totalTurns, toolCalls),
+      metrics: buildMetrics(sessionStart, totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens, totalTurns, toolCalls, filesScannedSet),
       error: String(err),
     };
   }
 
   return {
     finalText,
-    metrics: buildMetrics(sessionStart, totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens, totalTurns, toolCalls),
+    metrics: buildMetrics(sessionStart, totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens, totalTurns, toolCalls, filesScannedSet),
   };
 }
 
@@ -147,6 +153,7 @@ function buildMetrics(
   cacheCreationTokens: number,
   turns: number,
   toolCalls: ToolCallRecord[],
+  filesScannedSet: Set<string>,
 ): BenchmarkMetrics {
   const toolStats: Record<string, { count: number; totalDurationMs: number; totalInputTokensEst: number; totalOutputTokensEst: number }> = {};
   for (const call of toolCalls) {
@@ -166,5 +173,6 @@ function buildMetrics(
     totalTurns: turns,
     toolCalls,
     toolStats,
+    filesScanned: [...filesScannedSet],
   };
 }
