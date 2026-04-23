@@ -104,10 +104,10 @@ Run `claude auth status` to see which is active. Either works; no special setup 
 ## Running Benchmarks
 
 ```bash
-pnpm run benchmark                    # all tasks, default configs
-pnpm run benchmark:find               # only find-vulns tasks
-pnpm run benchmark:fix                # only fix-vulns tasks
-pnpm benchmark -- --config opus-only  # specific run config
+pnpm run benchmark                      # all tasks, default configs
+pnpm run benchmark:find                 # only find-vulns tasks
+pnpm run benchmark:fix                  # only fix-vulns tasks
+pnpm benchmark -- --config opus-only    # specific run config
 pnpm benchmark -- --task js-find-vulns  # specific task
 ```
 
