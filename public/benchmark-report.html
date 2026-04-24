@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Benchmark report — js-find-vulns</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #111111;
+      --muted: #5c5c5c;
+      --grid: #e8e8e8;
+      --axis: #000000;
+      --bar-primary: #c2562e;
+      --bar-primary-soft: #e8a88c;
+      --bar-neutral: #c9c5bf;
+      --bar-recall: #c2562e;
+      --bar-precision: #d9a286;
+      --radius: 6px;
+      --font: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 48px 32px 64px;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    .page {
+      max-width: 880px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 40px;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 6px;
+    }
+
+    .subtitle {
+      font-size: 0.95rem;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .meta {
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    section.chart-section {
+      margin-bottom: 48px;
+    }
+
+    section.chart-section h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 0 0 4px;
+      letter-spacing: -0.01em;
+    }
+
+    section.chart-section .chart-desc {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin: 0 0 16px;
+    }
+
+    .chart-wrap {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .chart-wrap svg {
+      display: block;
+      min-width: 520px;
+    }
+
+    .y-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      fill: var(--muted);
+    }
+
+    .grid line {
+      stroke: var(--grid);
+      stroke-width: 1;
+    }
+
+    .axis-x {
+      stroke: var(--axis);
+      stroke-width: 1.5;
+    }
+
+    .tick-label {
+      font-size: 12px;
+      fill: var(--text);
+    }
+
+    .value-label {
+      font-size: 13px;
+      font-weight: 700;
+      fill: var(--text);
+    }
+
+    .bar {
+      rx: var(--radius);
+      ry: var(--radius);
+    }
+
+    .footnote {
+      font-size: 0.75rem;
+      font-style: italic;
+      fill: var(--muted);
+    }
+
+    footer {
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px solid var(--grid);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1 id="report-title">Find vulnerabilities</h1>
+      <p class="subtitle" id="report-subtitle">Model vs SAST comparison</p>
+      <p class="meta" id="report-meta"></p>
+    </header>
+
+    <section class="chart-section" aria-labelledby="h-score">
+      <h2 id="h-score">Composite score</h2>
+      <p class="chart-desc">Overall benchmark score for this task (higher is better).</p>
+      <div class="chart-wrap" id="chart-score"></div>
+    </section>
+
+    <section class="chart-section" aria-labelledby="h-duration">
+      <h2 id="h-duration">Session duration</h2>
+      <p class="chart-desc">Wall-clock time from start to completion (milliseconds).</p>
+      <div class="chart-wrap" id="chart-duration"></div>
+    </section>
+
+    <section class="chart-section" aria-labelledby="h-recprec">
+      <h2 id="h-recprec">Recall and precision</h2>
+      <p class="chart-desc">Recall (known vulns found) and precision (share of findings that matched ground truth).</p>
+      <div class="chart-wrap" id="chart-recall-precision"></div>
+    </section>
+
+    <footer>
+      Static report generated from embedded benchmark JSONL rows. See <code>public/README.md</code> for how to refresh the data.
+    </footer>
+  </div>
+
+  <script>
+    /**
+     * Embedded from: results/benchmark-2026-04-24T11-21-37-863Z.jsonl
+     * Replace this array when regenerating from a new JSONL export.
+     */
+    const BENCHMARK_ROWS = [
+      {"taskId":"js-find-vulns","taskName":"JS App: Find Vulnerabilities","runConfigId":"sonnet-4-6","runConfigName":"Claude Sonnet 4.6 (no MCP)","runConfigType":"model","timestamp":"2026-04-24T11:20:55.632Z","score":0.9090909090909091,"metrics":{"sessionDurationMs":31601,"totalInputTokens":8,"totalOutputTokens":90,"totalCacheReadTokens":19689,"totalCacheCreationTokens":23809,"totalTurns":4,"toolCalls":[{"tool":"Bash","durationMs":93,"inputTokensEst":45,"outputTokensEst":55},{"tool":"Agent","durationMs":3848,"inputTokensEst":68,"outputTokensEst":304},{"tool":"Read","durationMs":15,"inputTokensEst":21,"outputTokensEst":431}],"toolStats":{"Bash":{"count":1,"totalDurationMs":93,"totalInputTokensEst":45,"totalOutputTokensEst":55},"Agent":{"count":1,"totalDurationMs":3848,"totalInputTokensEst":68,"totalOutputTokensEst":304},"Read":{"count":1,"totalDurationMs":15,"totalInputTokensEst":21,"totalOutputTokensEst":431}},"filesScanned":["/workspaces/coding-agent-security-benchmark/fixtures/js-vulns/app.js"]},"details":{"agentFindings":[{"id":"found-0","type":"hardcoded-credentials","severity":"critical","file":"app.js","line":9,"description":"Database password 'supersecretpassword123' is hardcoded in plaintext inside DB_CONFIG. Anyone with access to the source code obtains the credential."},{"id":"found-1","type":"sql-injection","severity":"critical","file":"app.js","line":24,"description":"The /users endpoint builds a SQL query by string-concatenating the unsanitized req.query.username value, allowing an attacker to inject arbitrary SQL statements."},{"id":"found-2","type":"xss","severity":"high","file":"app.js","line":31,"description":"The /greet endpoint reflects req.query.name directly into an HTML response without HTML encoding, enabling reflected XSS attacks."},{"id":"found-3","type":"path-traversal","severity":"high","file":"app.js","line":37,"description":"The /file endpoint concatenates req.query.filename to a base path with no normalization or boundary enforcement, allowing directory traversal (e.g., ../../etc/passwd) to read arbitrary files."},{"id":"found-4","type":"command-injection","severity":"critical","file":"app.js","line":45,"description":"The /ping endpoint passes req.query.host directly to child_process.exec() without sanitization, enabling OS command injection (e.g., host=127.0.0.1; id)."},{"id":"found-5","type":"xss","severity":"medium","file":"app.js","line":47,"description":"The stdout output of the ping command is embedded raw into an HTML <pre> block without escaping. If an attacker influences stdout content via command injection, this also becomes an XSS vector."}],"truePositives":["js-hardcoded-creds-1","js-sqli-1","js-xss-1","js-path-traversal-1","js-cmd-injection-1"],"falsePositives":1,"falseNegatives":[],"precision":0.8333333333333334,"recall":1}},
+      {"taskId":"js-find-vulns","taskName":"JS App: Find Vulnerabilities","runConfigId":"snyk-code","runConfigName":"Snyk Code SAST","runConfigType":"command","timestamp":"2026-04-24T11:21:27.257Z","score":0.6666666666666666,"metrics":{"sessionDurationMs":10604,"totalInputTokens":0,"totalOutputTokens":0,"totalCacheReadTokens":0,"totalCacheCreationTokens":0,"totalTurns":0,"toolCalls":[],"toolStats":{},"filesScanned":["app.js"]},"details":{"agentFindings":[{"id":"found-0","type":"command-injection","severity":"high","file":"app.js","line":45,"description":"Unsanitized input from an HTTP parameter flows into child_process.exec, where it is used to build a shell command. This may result in a Command Injection vulnerability."},{"id":"found-1","type":"other","severity":"medium","file":"app.js","line":13,"description":"Disable X-Powered-By header for your Express app (consider using Helmet middleware), because it exposes information about the used framework to potential attackers."},{"id":"found-2","type":"hardcoded-credentials","severity":"medium","file":"app.js","line":9,"description":"Do not hardcode passwords in code. Found hardcoded password used in password."},{"id":"found-3","type":"other","severity":"medium","file":"app.js","line":34,"description":"Expensive operation (a file system operation) is performed by an endpoint handler which does not use a rate-limiting mechanism. It may enable the attackers to perform Denial-of-service attacks. Consider using a rate-limiting middleware such as express-limit."},{"id":"found-4","type":"other","severity":"medium","file":"app.js","line":43,"description":"Expensive operation (a system command execution) is performed by an endpoint handler which does not use a rate-limiting mechanism. It may enable the attackers to perform Denial-of-service attacks. Consider using a rate-limiting middleware such as express-limit."},{"id":"found-5","type":"path-traversal","severity":"high","file":"app.js","line":37,"description":"Unsanitized input from an HTTP parameter flows into fs.readFile, where it is used as a path. This may result in a Path Traversal vulnerability and allow an attacker to read arbitrary files."},{"id":"found-6","type":"xss","severity":"high","file":"app.js","line":31,"description":"Unsanitized input from an HTTP parameter flows into send, where it is used to render an HTML page returned to the user. This may result in a Cross-Site Scripting attack (XSS)."}],"truePositives":["js-cmd-injection-1","js-hardcoded-creds-1","js-path-traversal-1","js-xss-1"],"falsePositives":3,"falseNegatives":["js-sqli-1"],"precision":0.5714285714285714,"recall":0.8}}
+    ];
+
+    const COLORS = {
+      primary: getComputedStyle(document.documentElement).getPropertyValue("--bar-primary").trim() || "#c2562e",
+      neutral: getComputedStyle(document.documentElement).getPropertyValue("--bar-neutral").trim() || "#c9c5bf",
+      recall: getComputedStyle(document.documentElement).getPropertyValue("--bar-recall").trim() || "#c2562e",
+      precision: getComputedStyle(document.documentElement).getPropertyValue("--bar-precision").trim() || "#d9a286",
+    };
+
+    function ns(tag, attrs, children) {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+      if (attrs) {
+        for (const [k, v] of Object.entries(attrs)) {
+          if (v !== undefined && v !== null) el.setAttribute(k, String(v));
+        }
+      }
+      if (children) {
+        for (const c of children) {
+          if (typeof c === "string") el.appendChild(document.createTextNode(c));
+          else if (c) el.appendChild(c);
+        }
+      }
+      return el;
+    }
+
+    function pct(x) {
+      return (100 * x).toFixed(1) + "%";
+    }
+
+    function fmtMs(ms) {
+      if (ms >= 1000) return (ms / 1000).toFixed(1) + " s";
+      return ms + " ms";
+    }
+
+    /**
+     * Vertical bar chart: categories on X, one value each, yMax for scale.
+     */
+    function renderBarChart(container, options) {
+      const {
+        title,
+        yAxisLabel,
+        categories,
+        values,
+        valueFormat,
+        yMax,
+        yTicks,
+        yTickFormat,
+        barColors,
+      } = options;
+
+      const W = 720;
+      const H = 260;
+      const margin = { top: 28, right: 24, bottom: 52, left: 56 };
+      const innerW = W - margin.left - margin.right;
+      const innerH = H - margin.top - margin.bottom;
+      const n = categories.length;
+      const gap = innerW * 0.12 / Math.max(n - 1, 1);
+      const barW = (innerW - gap * (n - 1)) / n;
+
+      const svg = ns("svg", {
+        viewBox: `0 0 ${W} ${H}`,
+        width: "100%",
+        height: H,
+        role: "img",
+        "aria-label": title,
+      });
+
+      const gRoot = ns("g", { transform: `translate(${margin.left},${margin.top})` });
+      svg.appendChild(gRoot);
+
+      const fmtY = yTickFormat || ((t) => String(t));
+      for (const t of yTicks) {
+        const y = innerH - (t / yMax) * innerH;
+        gRoot.appendChild(ns("line", { class: "grid", x1: 0, x2: innerW, y1: y, y2: y }));
+        gRoot.appendChild(
+          ns(
+            "text",
+            {
+              class: "tick-label",
+              x: -10,
+              y: y + 4,
+              "text-anchor": "end",
+              "font-size": "11",
+              fill: "#5c5c5c",
+            },
+            [fmtY(t)]
+          )
+        );
+      }
+
+      gRoot.appendChild(ns("line", { class: "axis-x", x1: 0, x2: innerW, y1: innerH, y2: innerH }));
+
+      const yLabel = ns("text", {
+        class: "y-label",
+        x: -innerH / 2,
+        y: -40,
+        transform: "rotate(-90)",
+        "text-anchor": "middle",
+      }, [yAxisLabel]);
+      gRoot.appendChild(yLabel);
+
+      categories.forEach((label, i) => {
+        const v = values[i];
+        const h = (v / yMax) * innerH;
+        const x = i * (barW + gap);
+        const y = innerH - h;
+        const fill = barColors[i] || COLORS.neutral;
+
+        const rect = ns("rect", {
+          class: "bar",
+          x,
+          y,
+          width: barW,
+          height: Math.max(h, 0),
+          fill,
+        });
+        gRoot.appendChild(rect);
+
+        const valText = ns("text", {
+          class: "value-label",
+          x: x + barW / 2,
+          y: y - 8,
+          "text-anchor": "middle",
+        }, [valueFormat(v, i)]);
+        gRoot.appendChild(valText);
+
+        const words = label.split(" ");
+        const lines = words.length > 4 ? [words.slice(0, 3).join(" "), words.slice(3).join(" ")] : [label];
+        lines.forEach((line, li) => {
+          gRoot.appendChild(
+            ns("text", {
+              class: "tick-label",
+              x: x + barW / 2,
+              y: innerH + 18 + li * 14,
+              "text-anchor": "middle",
+            }, [line])
+          );
+        });
+      });
+
+      container.innerHTML = "";
+      container.appendChild(svg);
+    }
+
+    /**
+     * Grouped bars: per category two bars (recall, precision).
+     */
+    function renderGroupedRecallPrecision(container, categories, recall, precision) {
+      const W = 720;
+      const H = 280;
+      const margin = { top: 36, right: 24, bottom: 56, left: 56 };
+      const innerW = W - margin.left - margin.right;
+      const innerH = H - margin.top - margin.bottom;
+      const yMax = 1;
+      const n = categories.length;
+      const groupW = innerW / n;
+      const innerGap = groupW * 0.15;
+      const pairW = groupW - innerGap;
+      const barW = pairW / 2 - 4;
+
+      const svg = ns("svg", {
+        viewBox: `0 0 ${W} ${H}`,
+        width: "100%",
+        height: H,
+        role: "img",
+        "aria-label": "Recall and precision by run",
+      });
+
+      const gRoot = ns("g", { transform: `translate(${margin.left},${margin.top})` });
+      svg.appendChild(gRoot);
+
+      const yTicks = [0, 0.2, 0.4, 0.6, 0.8, 1];
+      for (const t of yTicks) {
+        const y = innerH - t * innerH;
+        gRoot.appendChild(ns("line", { class: "grid", x1: 0, x2: innerW, y1: y, y2: y }));
+        gRoot.appendChild(
+          ns(
+            "text",
+            {
+              class: "tick-label",
+              x: -10,
+              y: y + 4,
+              "text-anchor": "end",
+              "font-size": "11",
+              fill: "#5c5c5c",
+            },
+            [Math.round(t * 100) + "%"]
+          )
+        );
+      }
+      gRoot.appendChild(ns("line", { class: "axis-x", x1: 0, x2: innerW, y1: innerH, y2: innerH }));
+
+      gRoot.appendChild(
+        ns("text", {
+          class: "y-label",
+          x: -innerH / 2,
+          y: -44,
+          transform: "rotate(-90)",
+          "text-anchor": "middle",
+        }, ["RATE"])
+      );
+
+      categories.forEach((label, i) => {
+        const gx = i * groupW + innerGap / 2;
+        const vals = [
+          { v: recall[i], fill: COLORS.recall, name: "Recall" },
+          { v: precision[i], fill: COLORS.precision, name: "Precision" },
+        ];
+        vals.forEach((item, j) => {
+          const x = gx + j * (barW + 6);
+          const h = item.v * innerH;
+          const y = innerH - h;
+          gRoot.appendChild(
+            ns("rect", {
+              class: "bar",
+              x,
+              y,
+              width: barW,
+              height: Math.max(h, 0),
+              fill: item.fill,
+            })
+          );
+          gRoot.appendChild(
+            ns("text", {
+              class: "value-label",
+              x: x + barW / 2,
+              y: y - 6,
+              "text-anchor": "middle",
+              "font-size": "11",
+            }, [pct(item.v)])
+          );
+        });
+
+        const short = label.length > 22 ? label.slice(0, 20) + "…" : label;
+        gRoot.appendChild(
+          ns("text", {
+            class: "tick-label",
+            x: gx + pairW / 2,
+            y: innerH + 20,
+            "text-anchor": "middle",
+          }, [short])
+        );
+      });
+
+      const legendY = 8;
+      const leg = ns("g", { transform: `translate(${innerW - 200}, ${legendY})` });
+      [
+        { fill: COLORS.recall, text: "Recall" },
+        { fill: COLORS.precision, text: "Precision" },
+      ].forEach((item, i) => {
+        const lx = i * 100;
+        leg.appendChild(ns("rect", { x: lx, y: 0, width: 14, height: 14, fill: item.fill, rx: 3, ry: 3 }));
+        leg.appendChild(
+          ns("text", { x: lx + 20, y: 12, class: "tick-label", "font-size": "11" }, [item.text])
+        );
+      });
+      gRoot.appendChild(leg);
+
+      container.innerHTML = "";
+      container.appendChild(svg);
+    }
+
+    function normalizeRuns(rows) {
+      return rows.map((r, idx) => ({
+        label: r.runConfigName,
+        score: r.score,
+        durationMs: r.metrics.sessionDurationMs,
+        recall: r.details.recall,
+        precision: r.details.precision,
+        /** First series (e.g. agent model) uses highlight color; others neutral. */
+        barMain: idx === 0 ? COLORS.primary : COLORS.neutral,
+      }));
+    }
+
+    function init() {
+      const runs = normalizeRuns(BENCHMARK_ROWS);
+      const first = BENCHMARK_ROWS[0];
+      document.getElementById("report-title").textContent = first.taskName || "Benchmark";
+      document.getElementById("report-subtitle").textContent =
+        (first.taskId || "") + " · scored find-vulns";
+      const ts = [...new Set(BENCHMARK_ROWS.map((r) => r.timestamp))].sort().join(" → ");
+      document.getElementById("report-meta").textContent = "Source timestamps: " + ts;
+
+      const labels = runs.map((r) => r.label);
+      const barColors = runs.map((r) => r.barMain);
+
+      renderBarChart(document.getElementById("chart-score"), {
+        title: "Score",
+        yAxisLabel: "SCORE",
+        categories: labels,
+        values: runs.map((r) => r.score),
+        valueFormat: (v) => pct(v),
+        yMax: 1,
+        yTicks: [0, 0.2, 0.4, 0.6, 0.8, 1],
+        yTickFormat: (t) => Math.round(t * 100) + "%",
+        barColors,
+      });
+
+      const maxDur = Math.max(...runs.map((r) => r.durationMs), 1);
+      const yMaxMs = Math.ceil(maxDur / 5000) * 5000;
+      renderBarChart(document.getElementById("chart-duration"), {
+        title: "Session duration",
+        yAxisLabel: "DURATION",
+        categories: labels,
+        values: runs.map((r) => r.durationMs),
+        valueFormat: (v) => fmtMs(v),
+        yMax: yMaxMs,
+        yTicks: [0, 0.2, 0.4, 0.6, 0.8, 1].map((t) => t * yMaxMs),
+        yTickFormat: (t) => (t >= 1000 ? Math.round(t / 1000) + "s" : String(Math.round(t))),
+        barColors,
+      });
+
+      renderGroupedRecallPrecision(
+        document.getElementById("chart-recall-precision"),
+        labels,
+        runs.map((r) => r.recall),
+        runs.map((r) => r.precision)
+      );
+    }
+
+    init();
+  </script>
+</body>
+</html>
