@@ -3,6 +3,7 @@ import { join } from "path";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { runTask } from "./runner.js";
+import { runCommandTask } from "./command-runner.js";
 import {
   scoreFindVulns,
   findVulnsScore,
@@ -12,7 +13,7 @@ import {
 import { printResult, printSummaryTable, saveResults } from "./reporter.js";
 import { loadEvalTasks, loadRunConfigs } from "./evals/loader.js";
 import { EVAL_CATEGORIES } from "./types.js";
-import type { EvalCategoryId, EvalResult, EvalTask, RunConfig } from "./types.js";
+import type { EvalCategoryId, EvalResult, EvalTask, RunConfig, ModelRunConfig, CommandRunConfig } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const RESULTS_DIR = resolve(__dirname, "../results");
@@ -27,7 +28,7 @@ function parseArgs() {
   const opts: {
     category?: EvalCategoryId;
     task?: string;
-    config?: string;
+    configs?: string[]; // comma-separated list of config IDs
     dryRun: boolean;
   } = { dryRun: false };
 
@@ -40,7 +41,7 @@ function parseArgs() {
       }
       opts.category = val as EvalCategoryId;
     } else if (args[i] === "--task" && args[i + 1]) opts.task = args[++i];
-    else if (args[i] === "--config" && args[i + 1]) opts.config = args[++i];
+    else if (args[i] === "--config" && args[i + 1]) opts.configs = args[++i].split(",").map((s) => s.trim());
     else if (args[i] === "--dry-run") opts.dryRun = true;
   }
   return opts;
@@ -50,36 +51,47 @@ function parseArgs() {
 
 async function runEval(task: EvalTask, config: RunConfig): Promise<EvalResult> {
   const timestamp = new Date().toISOString();
+  const isCommand = config.type === "command";
+  const runConfigType: "model" | "command" = isCommand ? "command" : "model";
+
+  // Shared fields across all return sites
+  const base = { taskId: task.id, taskName: task.name, runConfigId: config.id, runConfigName: config.name, runConfigType, timestamp };
 
   console.log(`\nRunning: ${task.name} | ${config.name}`);
 
-  let cwd: string;
+  // Command configs (SAST tools) only produce findings — they can't fix code
+  if (isCommand && task.category.id === EVAL_CATEGORIES.FIX_VULNS.id) {
+    return {
+      ...base,
+      score: 0,
+      metrics: { sessionDurationMs: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCacheReadTokens: 0, totalCacheCreationTokens: 0, totalTurns: 0, toolCalls: [], toolStats: {}, filesScanned: [] },
+      details: { agentFindings: [], truePositives: [], falsePositives: 0, falseNegatives: task.knownVulns.map((v) => v.id), precision: 0, recall: 0 },
+      error: `Command config "${config.id}" does not support fix-vulns tasks`,
+    };
+  }
+
+  let cwd = task.fixture;
   let cleanupTmp = false;
 
-  if (task.category.id === EVAL_CATEGORIES.FIX_VULNS.id) {
+  if (!isCommand && task.category.id === EVAL_CATEGORIES.FIX_VULNS.id) {
     // Work on a temp copy so we don't modify the original fixture
     cwd = join(TMP_DIR, `${task.id}-${config.id}-${Date.now()}`);
     mkdirSync(cwd, { recursive: true });
     cpSync(task.fixture, cwd, { recursive: true });
     cleanupTmp = true;
-  } else {
-    // find-vulns: read-only, use fixture directly
-    cwd = task.fixture;
   }
 
   try {
-    const { finalText, metrics, error } = await runTask(task, config, cwd);
+    const { finalText, metrics, error } = isCommand
+      ? await runCommandTask(task, config as CommandRunConfig, task.fixture)
+      : await runTask(task, config as ModelRunConfig, cwd);
 
     if (error) {
       return {
-        taskId: task.id,
-        taskName: task.name,
-        runConfigId: config.id,
-        runConfigName: config.name,
+        ...base,
         score: 0,
         metrics,
         details: { agentFindings: [], truePositives: [], falsePositives: 0, falseNegatives: task.knownVulns.map((v) => v.id), precision: 0, recall: 0 },
-        timestamp,
         error,
       };
     }
@@ -87,11 +99,11 @@ async function runEval(task: EvalTask, config: RunConfig): Promise<EvalResult> {
     if (task.category.id === EVAL_CATEGORIES.FIND_VULNS.id) {
       const details = scoreFindVulns(finalText, task);
       const score = findVulnsScore(details);
-      return { taskId: task.id, taskName: task.name, runConfigId: config.id, runConfigName: config.name, score, metrics, details, timestamp };
+      return { ...base, score, metrics, details };
     } else {
       const details = await scoreFixVulns(cwd, task);
       const score = fixVulnsScore(details);
-      return { taskId: task.id, taskName: task.name, runConfigId: config.id, runConfigName: config.name, score, metrics, details, timestamp };
+      return { ...base, score, metrics, details };
     }
   } finally {
     if (cleanupTmp) {
@@ -117,16 +129,19 @@ async function main() {
   if (opts.category) tasks = tasks.filter((t) => t.category.id === opts.category);
   if (opts.task) tasks = tasks.filter((t) => t.id === opts.task);
 
-  // Filter configs
+  // Filter configs — supports comma-separated list: --config sonnet-4-6,snyk-code
   let configs = DEFAULT_RUN_CONFIGS;
-  if (opts.config) configs = configs.filter((c) => c.id === opts.config);
+  if (opts.configs) {
+    const ids = new Set(opts.configs);
+    configs = configs.filter((c) => ids.has(c.id));
+  }
 
   if (tasks.length === 0) {
     console.error("No matching tasks found. Available:", EVAL_TASKS.map((t) => t.id).join(", "));
     process.exit(1);
   }
   if (configs.length === 0) {
-    console.error("No matching configs found. Available:", DEFAULT_RUN_CONFIGS.map((c) => c.id).join(", "));
+    console.error(`No matching configs found for "${opts.configs?.join(", ")}". Available:`, DEFAULT_RUN_CONFIGS.map((c) => c.id).join(", "));
     process.exit(1);
   }
 
@@ -134,8 +149,10 @@ async function main() {
   for (const task of tasks) {
     console.log(`  ${task.id}  [${task.category.id}]`);
     for (let i = 0; i < configs.length; i++) {
+      const c = configs[i];
       const prefix = i === configs.length - 1 ? "  └─" : "  ├─";
-      console.log(`${prefix} ${configs[i].id}: ${configs[i].model}`);
+      const label = c.type === "command" ? `[sast] ${(c as CommandRunConfig).command}` : (c as ModelRunConfig).model;
+      console.log(`${prefix} ${c.id}: ${label}`);
     }
   }
 

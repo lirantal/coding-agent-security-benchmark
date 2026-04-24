@@ -10,5 +10,12 @@
     "name": "Claude Sonnet 4.6 (no MCP)",
     "model": "claude-sonnet-4-6",
     "maxTurns": 30
+  },
+  {
+    "type": "command",
+    "id": "snyk-code",
+    "name": "Snyk Code SAST",
+    "command": "snyk code test {fixturePath} --json",
+    "parser": "snyk-code"
   }
 ]

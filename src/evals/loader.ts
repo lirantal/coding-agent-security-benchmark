@@ -3,7 +3,7 @@ import { join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 import { EVAL_CATEGORIES } from "../types.js";
-import type { EvalTask, RunConfig, Vulnerability, EvalCategoryId } from "../types.js";
+import type { EvalTask, RunConfig, ModelRunConfig, CommandRunConfig, Vulnerability, EvalCategoryId } from "../types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "../..");
@@ -95,7 +95,7 @@ export function loadEvalTasks(): EvalTask[] {
 }
 
 export function loadRunConfigs(): RunConfig[] {
-  let raw: RunConfig[];
+  let raw: Array<Record<string, unknown>>;
   try {
     raw = JSON.parse(readFileSync(RUN_CONFIGS_FILE, "utf-8"));
   } catch (err) {
@@ -104,5 +104,21 @@ export function loadRunConfigs(): RunConfig[] {
   if (!Array.isArray(raw)) {
     throw new Error(`${RUN_CONFIGS_FILE} must be a JSON array of RunConfig objects`);
   }
-  return raw;
+
+  return raw.map((entry) => {
+    if (!entry.id || !entry.name) {
+      throw new Error(`Run config missing required fields "id" and "name": ${JSON.stringify(entry)}`);
+    }
+    if (entry.type === "command") {
+      if (!entry.command || !entry.parser) {
+        throw new Error(`Command config "${entry.id}" missing required fields: command, parser`);
+      }
+      return entry as unknown as CommandRunConfig;
+    } else {
+      if (!entry.model) {
+        throw new Error(`Model config "${entry.id}" missing required field: model`);
+      }
+      return entry as unknown as ModelRunConfig;
+    }
+  });
 }

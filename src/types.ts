@@ -94,13 +94,32 @@ export interface MCPServerConfig {
   env?: Record<string, string>;
 }
 
-export interface RunConfig {
+/** Standard agent run using the Claude Agent SDK. */
+export interface ModelRunConfig {
+  type?: "model";
   id: string;
   name: string;
   model: string;
   mcpServers?: Record<string, MCPServerConfig>;
   maxTurns?: number;
 }
+
+/**
+ * SAST or other CLI tool run.
+ * The command is a template where `{fixturePath}` is substituted at runtime.
+ * `parser` is a key into the registry in src/parsers/index.ts.
+ */
+export interface CommandRunConfig {
+  type: "command";
+  id: string;
+  name: string;
+  /** e.g. "snyk code test {fixturePath} --json" */
+  command: string;
+  /** Parser key — must match an entry in the parser registry */
+  parser: string;
+}
+
+export type RunConfig = ModelRunConfig | CommandRunConfig;
 
 export interface ToolCallRecord {
   tool: string;
@@ -127,6 +146,12 @@ export interface BenchmarkMetrics {
   filesScanned: string[];
 }
 
+export interface RunOutput {
+  finalText: string;
+  metrics: BenchmarkMetrics;
+  error?: string;
+}
+
 export interface FindVulnsDetails {
   agentFindings: Vulnerability[];
   truePositives: string[]; // vuln IDs correctly found
@@ -147,6 +172,8 @@ export interface EvalResult {
   taskName: string;
   runConfigId: string;
   runConfigName: string;
+  /** Distinguishes model (Agent SDK) runs from command (SAST tool) runs in JSONL output */
+  runConfigType: "model" | "command";
   score: number; // 0–1
   metrics: BenchmarkMetrics;
   details: FindVulnsDetails | FixVulnsDetails;

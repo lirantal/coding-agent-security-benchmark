@@ -1,12 +1,6 @@
 import { query, type HookCallback } from "@anthropic-ai/claude-agent-sdk";
 import { dirname } from "path";
-import type { EvalTask, RunConfig, BenchmarkMetrics, ToolCallRecord } from "./types.js";
-
-export interface RunOutput {
-  finalText: string;
-  metrics: BenchmarkMetrics;
-  error?: string;
-}
+import type { EvalTask, ModelRunConfig, RunOutput, BenchmarkMetrics, ToolCallRecord } from "./types.js";
 
 /**
  * Runs an eval task using the Claude Agent SDK and collects benchmark metrics.
@@ -14,7 +8,7 @@ export interface RunOutput {
  */
 export async function runTask(
   task: EvalTask,
-  config: RunConfig,
+  config: ModelRunConfig,
   cwd: string,
 ): Promise<RunOutput> {
   const toolCalls: ToolCallRecord[] = [];

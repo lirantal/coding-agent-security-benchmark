@@ -16,6 +16,7 @@ How to add new eval tasks, new fixtures, and new run configs — without touchin
    - [Adding a new model config](#adding-a-new-model-config)
    - [Adding an MCP server config](#adding-an-mcp-server-config)
    - [How MCP tool permissions work](#how-mcp-tool-permissions-work)
+   - [Adding a SAST command config](#adding-a-sast-command-config)
 6. [Run Config JSON Reference](#run-config-json-reference)
 7. [Worked Example: Adding a Ruby Fixture](#worked-example-adding-a-ruby-fixture)
 8. [Troubleshooting](#troubleshooting)
@@ -180,7 +181,10 @@ If your task appears, run it for real:
 # Just your new task, against a single config (fast for initial testing)
 pnpm run benchmark -- --task ruby-find-vulns --config sonnet-4-6
 
-# Both tasks together
+# Against multiple specific configs (comma-separated, no spaces)
+pnpm run benchmark -- --task ruby-find-vulns --config sonnet-4-6,snyk-code
+
+# Both tasks across all configs
 pnpm run benchmark -- --task ruby-find-vulns
 pnpm run benchmark -- --task ruby-fix-vulns
 ```
@@ -368,26 +372,89 @@ Restricting to specific tools (instead of the wildcard) is only worth doing if y
 To compare a bare model against the same model with an MCP tool, keep both configs and run them together:
 
 ```bash
-pnpm run benchmark -- --config sonnet-4-6 --category find-vulns
-pnpm run benchmark -- --config sonnet-with-semgrep --category find-vulns
+pnpm run benchmark -- --config sonnet-4-6,sonnet-with-semgrep --category find-vulns
 # Then compare their scores in results/
+```
+
+### Adding a SAST command config
+
+A **command config** runs a CLI security scanner directly against the fixture and scores its output with the same precision/recall/F1 pipeline as model runs. This is how you compare "LLM agent vs classic SAST tool" in a single benchmark run.
+
+```json
+{
+  "type": "command",
+  "id": "snyk-code",
+  "name": "Snyk Code SAST",
+  "command": "snyk code test {fixturePath} --json",
+  "parser": "snyk-code"
+}
+```
+
+The `{fixturePath}` placeholder is substituted at runtime with the absolute path to the fixture directory. The `parser` value must match a key registered in `src/parsers/index.ts`.
+
+**How it works end-to-end:**
+
+1. The benchmark runner executes the command with `{fixturePath}` replaced
+2. stdout is passed to the named parser function, which maps the tool's JSON output to the common `FindingRecord[]` format
+3. Those findings are serialised as a `FINDINGS_JSON:` block — the same format model runs produce
+4. The existing scorer runs: precision/recall/F1 against the fixture's ground-truth JSON
+5. The result lands in the JSONL file with `"runConfigType": "command"` so you can filter SAST vs model rows
+
+**Adding a new SAST tool** requires two steps, both in source:
+
+1. Add `src/parsers/<tool-name>.ts` — a function `(stdout: string) => FindingRecord[]` that maps the tool's output format to the common schema
+2. Register it in `src/parsers/index.ts`:
+   ```typescript
+   import { parseMyToolOutput } from "./my-tool.js";
+   const PARSERS = {
+     "snyk-code": parseSnykCodeOutput,
+     "my-tool": parseMyToolOutput,   // ← add this line
+   };
+   ```
+3. Add the config entry to `evals/run-configs.json` with `"parser": "my-tool"`
+
+**Important:** Command configs only work with find-vulns tasks. SAST tools produce findings but don't modify code — they are automatically skipped (with an error result) if paired with a fix-vulns task. The summary table will still show the row; look for `error` in the JSONL record to identify it.
+
+**Running the comparison:**
+
+```bash
+# Compare Snyk Code SAST against Sonnet on the same task
+pnpm run benchmark -- --task js-find-vulns --config sonnet-4-6,snyk-code
+
+# Run SAST against all find-vulns tasks
+pnpm run benchmark -- --category find-vulns --config snyk-code
 ```
 
 ---
 
 ## Run Config JSON Reference
 
-Each entry in `evals/run-configs.json`:
+Each entry in `evals/run-configs.json` is one of two shapes depending on `"type"`.
+
+### Model config fields (`type` absent or `"model"`)
 
 | Field | Required | Type | Description |
 |---|---|---|---|
+| `type` | No | `"model"` | Identifies this as a model config. Omitting it defaults to `"model"`. |
 | `id` | Yes | `string` | Unique identifier. Used in `--config` CLI filter. |
 | `name` | Yes | `string` | Human-readable label shown in console output and result files. |
 | `model` | Yes | `string` | Anthropic model ID, e.g. `"claude-opus-4-6"`, `"claude-sonnet-4-6"`, `"claude-haiku-4-5"`. |
 | `maxTurns` | No | `number` | Max conversation turns for this config. Overridden per-task by the task's `maxTurns` if set. |
 | `mcpServers` | No | `object` | Map of MCP server name → `MCPServerConfig`. Omit for a bare model run. |
 
-Each `MCPServerConfig`:
+### Command config fields (`type: "command"`)
+
+| Field | Required | Type | Description |
+|---|---|---|---|
+| `type` | Yes | `"command"` | Identifies this as a SAST/CLI tool config. |
+| `id` | Yes | `string` | Unique identifier. Used in `--config` CLI filter. |
+| `name` | Yes | `string` | Human-readable label shown in console output and result files. |
+| `command` | Yes | `string` | Command template. Use `{fixturePath}` as a placeholder for the fixture directory path. |
+| `parser` | Yes | `string` | Parser key from the registry in `src/parsers/index.ts` (e.g. `"snyk-code"`). |
+
+Command configs only support find-vulns tasks. They produce `"runConfigType": "command"` in JSONL output and have zeroed token/turn metrics (only `sessionDurationMs` and `filesScanned` are populated).
+
+### MCPServerConfig fields
 
 | Field | Required | Type | Description |
 |---|---|---|---|
@@ -465,6 +532,9 @@ pnpm run benchmark -- --dry-run
 # Run find task with one model to sanity-check scoring
 pnpm run benchmark -- --task ruby-find-vulns --config sonnet-4-6
 
+# Compare model against SAST on the same fixture (comma-separated, no spaces)
+pnpm run benchmark -- --task ruby-find-vulns --config sonnet-4-6,snyk-code
+
 # Run the full matrix for your new fixture only
 pnpm run benchmark -- --task ruby-find-vulns
 pnpm run benchmark -- --task ruby-fix-vulns
@@ -499,5 +569,11 @@ That's it. No source code changes required.
 **"No matching tasks found. Available: ..."**
 - The `--task` id you passed doesn't match any loaded task. Run `--dry-run` to see what ids are loaded.
 
-**"No matching configs found. Available: ..."**
-- The `--config` id you passed doesn't match any entry in `evals/run-configs.json`.
+**"No matching configs found for '...'. Available: ..."**
+- The `--config` value(s) you passed don't match any entry in `evals/run-configs.json`. Multiple configs are comma-separated: `--config sonnet-4-6,snyk-code` (no spaces around the comma).
+
+**Command config produces score 0 with an error on a fix-vulns task**
+- This is expected — command configs (SAST tools) only support find-vulns. Pair a SAST config only with find-vulns tasks, or run `--category find-vulns --config snyk-code` to automatically skip fix-vulns tasks.
+
+**`Unknown parser "..."` error when running a command config**
+- The `"parser"` value in your config entry doesn't match any key in `src/parsers/index.ts`. Add the parser there before using it in `run-configs.json`.

@@ -280,39 +280,66 @@ Key design decisions baked into the task definition:
 
 **Location:** `evals/run-configs.json` — a JSON array loaded at startup by `src/evals/loader.ts`
 
-A `RunConfig` describes *which agent* should run the task — the model identity and any additional tools it has access to.
+A `RunConfig` is a discriminated union — either a **model config** (runs Claude via the Agent SDK) or a **command config** (runs a CLI tool like Snyk directly). Both produce the same `RunOutput` shape and go through the same scorer, so results are directly comparable in the summary table.
 
 ```typescript
-interface RunConfig {
-  id: string;                              // unique identifier
-  name: string;                            // human-readable label
+// Model-based: runs the Agent SDK with a specified Claude model
+interface ModelRunConfig {
+  type?: "model";      // optional — omitting it defaults to model
+  id: string;
+  name: string;
   model: string;                           // e.g. "claude-opus-4-6"
-  mcpServers?: Record<string, MCPServer>;  // optional: tool servers
-  maxTurns?: number;                       // fallback turn limit
+  mcpServers?: Record<string, MCPServer>;  // optional: MCP tool servers
+  maxTurns?: number;
+}
+
+// Command-based: runs a CLI tool (SAST scanner, etc.)
+interface CommandRunConfig {
+  type: "command";
+  id: string;
+  name: string;
+  command: string;   // template — {fixturePath} is substituted at runtime
+  parser: string;    // key into parser registry (src/parsers/index.ts)
 }
 ```
 
-The separation of `EvalTask` and `RunConfig` is the key architectural decision that makes this a *benchmark* rather than a one-off script. It lets you answer the question: **"Does this task get a better score with a different model or tool setup?"**
+The separation of `EvalTask` and `RunConfig` is the key architectural decision that makes this a *benchmark* rather than a one-off script. It lets you answer: **"Does this task get a better score with a different model, tool setup, or scanning approach?"**
 
-Example comparison enabled by this design:
+Example comparisons enabled by this design:
 
-| RunConfig | What it isolates |
+| Comparison | What it isolates |
 |---|---|
 | `opus-4-6` vs `sonnet-4-6` | Raw model quality difference |
-| `sonnet-4-6` vs `sonnet-4-6-with-semgrep-mcp` | Value of adding a security analysis tool |
-| `sonnet-4-6` vs `sonnet-4-6-with-snyk-mcp` | Snyk vs semgrep for the same model |
+| `sonnet-4-6` vs `sonnet-4-6-with-snyk-mcp` | Value of an MCP-connected security tool |
+| `sonnet-4-6` vs `snyk-code` | LLM agent vs classic SAST |
+| `opus-4-6` vs `snyk-code` | Best model vs best SAST |
 
-To add a config with an MCP server:
-```typescript
+**Command configs are find-vulns only.** SAST tools produce findings but don't edit code, so they are automatically skipped (with an error result) if paired with a fix-vulns task.
+
+**Adding a model config with an MCP server:**
+```json
 {
-  id: "sonnet-with-semgrep",
-  name: "Claude Sonnet 4.6 + semgrep MCP",
-  model: "claude-sonnet-4-6",
-  mcpServers: {
-    semgrep: { command: "npx", args: ["@semgrep/mcp"] }
+  "id": "sonnet-with-semgrep",
+  "name": "Claude Sonnet 4.6 + semgrep MCP",
+  "model": "claude-sonnet-4-6",
+  "mcpServers": {
+    "semgrep": { "command": "npx", "args": ["@semgrep/mcp"] }
   }
 }
 ```
+
+**Adding a SAST command config:**
+```json
+{
+  "type": "command",
+  "id": "snyk-code",
+  "name": "Snyk Code SAST",
+  "command": "snyk code test {fixturePath} --json",
+  "parser": "snyk-code"
+}
+```
+
+The `parser` key must match a registered parser in `src/parsers/index.ts`. Adding a new SAST tool means adding one parser file and registering it there — no changes to the runner or scorer.
 
 ---
 
@@ -538,6 +565,7 @@ interface EvalResult {
   taskName: string;        // e.g. "JS App: Find Vulnerabilities"
   runConfigId: string;     // e.g. "opus-4-6"
   runConfigName: string;   // e.g. "Claude Opus 4.6 (no MCP)"
+  runConfigType: "model" | "command"; // distinguishes Agent SDK runs from SAST tool runs
   score: number;           // 0.0–1.0
   metrics: BenchmarkMetrics; // tokens, time, tool calls
   details: FindVulnsDetails | FixVulnsDetails; // what happened in scoring
@@ -946,6 +974,7 @@ Each run appends one JSON object to `results/benchmark-<timestamp>.jsonl`. This 
   "taskName": "JS App: Find Vulnerabilities",
   "runConfigId": "opus-4-6",
   "runConfigName": "Claude Opus 4.6 (no MCP)",
+  "runConfigType": "model",
   "score": 0.888,
   "timestamp": "2026-03-26T21:49:22.964Z",
   "metrics": {
@@ -985,11 +1014,20 @@ The JSONL file can be queried directly:
 # Show all scores
 jq '.score' results/benchmark-*.jsonl
 
-# Compare token costs across configs for the same task
-jq 'select(.taskId == "js-find-vulns") | {config: .runConfigId, tokens: (.metrics.totalInputTokens + .metrics.totalOutputTokens + .metrics.totalCacheReadTokens + .metrics.totalCacheCreationTokens)}' results/benchmark-*.jsonl
+# Compare model vs SAST scores for the same task
+jq 'select(.taskId == "js-find-vulns") | {config: .runConfigId, type: .runConfigType, score: .score}' results/benchmark-*.jsonl
 
-# Find the most-used tool across all runs
-jq '.metrics.toolStats | to_entries | max_by(.value.count) | .key' results/benchmark-*.jsonl
+# Only model runs (exclude SAST tools)
+jq 'select(.runConfigType == "model")' results/benchmark-*.jsonl
+
+# Only SAST tool runs
+jq 'select(.runConfigType == "command")' results/benchmark-*.jsonl
+
+# Compare token costs across model configs for the same task
+jq 'select(.taskId == "js-find-vulns" and .runConfigType == "model") | {config: .runConfigId, tokens: (.metrics.totalInputTokens + .metrics.totalOutputTokens + .metrics.totalCacheReadTokens + .metrics.totalCacheCreationTokens)}' results/benchmark-*.jsonl
+
+# Find the most-used tool across all model runs
+jq 'select(.runConfigType == "model") | .metrics.toolStats | to_entries | max_by(.value.count) | .key' results/benchmark-*.jsonl
 ```
 
 ---
@@ -1002,7 +1040,9 @@ No source code changes required — the benchmark uses a directory-scanning load
 
 - **New fixture:** create `fixtures/<name>/` with your vulnerable code, and a sibling `fixtures/<name>.json` as the answer key
 - **New eval task:** drop a JSON file in `evals/tasks/<id>.json` with `id`, `name`, `category`, `fixture` fields
-- **New run config:** append an entry to `evals/run-configs.json`
+- **New model config:** append a `ModelRunConfig` entry to `evals/run-configs.json` (or omit `"type"` — it defaults to model)
+- **New SAST config:** append a `CommandRunConfig` entry with `"type": "command"`, `"command"`, and `"parser"` fields
+- **New SAST parser:** add a file to `src/parsers/` and register it in `src/parsers/index.ts`
 
 ### Running a Specific Combination
 
@@ -1023,6 +1063,9 @@ pnpm run benchmark -- --task js-find-vulns
 
 # Filter by a specific config (one column of the matrix), across all tasks
 pnpm run benchmark -- --config opus-4-6
+
+# Select multiple configs by comma-separating them (no spaces)
+pnpm run benchmark -- --task js-find-vulns --config sonnet-4-6,snyk-code
 
 # Combine filters — one task against one config (a single cell)
 pnpm run benchmark -- --task js-find-vulns --config sonnet-with-snyk
