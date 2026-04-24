@@ -13,7 +13,11 @@
       "WebSearch",
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:docs.claude.com)",
-      "Bash(find /workspaces/coding-agent-security-benchmark/node_modules/.pnpm/@anthropic-ai+claude-agent-sdk*/node_modules/@anthropic-ai/claude-agent-sdk -name \"*.d.ts\")"
+      "Bash(find /workspaces/coding-agent-security-benchmark/node_modules/.pnpm/@anthropic-ai+claude-agent-sdk*/node_modules/@anthropic-ai/claude-agent-sdk -name \"*.d.ts\")",
+      "WebFetch(domain:www.frontierswe.com)",
+      "WebFetch(domain:baxbench.com)",
+      "WebFetch(domain:cursor.com)",
+      "WebFetch(domain:www.anthropic.com)"
     ]
   }
 }
