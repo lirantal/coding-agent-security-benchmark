@@ -8,9 +8,12 @@ curl -sSL https://aka.ms/apm-unix | sh
 # curl -fsSL https://opencode.ai/install | bash
 
 # Install Snyk CLI
-# curl --compressed https://static.snyk.io/cli/latest/snyk-linux-arm64 -o snyk
-# chmod +x ./snyk
-# sudo mv -f ./snyk /usr/local/bin/snyk
+curl --compressed https://static.snyk.io/cli/latest/snyk-linux-arm64 -o snyk
+chmod +x ./snyk
+sudo mv -f ./snyk /usr/local/bin/snyk
+# Then configure Snyk to use an API Key or Token
+# 1. fetch it from the Settings page in the Snyk UI: https://app.snyk.io/org/<org-id>/manage/service-accounts
+# 2. set it as the snyk api config: snyk config set api=<api-key-or-token>
 
 # Install 1Password CLI (op) - arm64 Linux binary
 # OP_VERSION="2.32.1"
