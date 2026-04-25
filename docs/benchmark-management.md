@@ -258,6 +258,7 @@ Each entry in `vulnerabilities`:
 | `"xxe"` | XML External Entity injection via an XML parser |
 | `"ssrf"` | Server-Side Request Forgery — user-controlled URL used in a server-side HTTP request |
 | `"open-redirect"` | User-controlled redirect target without validation |
+| `"information-exposure"` | Sensitive data or framework details leaked to clients (e.g. stack traces, version headers, verbose error messages) |
 | `"other"` | Any vulnerability that doesn't fit the above categories |
 
 **Scoring note:** The scorer matches findings by `type`. If your fixture has two SQL injections, give each its own entry with unique `id`s — they will be tracked and scored independently.

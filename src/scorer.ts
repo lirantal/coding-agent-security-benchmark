@@ -181,6 +181,11 @@ function normalizeVulnType(raw: string): VulnType {
     "insecure-deserialization": "insecure-deserialization",
     "idor": "idor",
     "broken object level authorization": "idor",
+    "information-exposure": "information-exposure",
+    "information exposure": "information-exposure",
+    "information disclosure": "information-exposure",
+    "info leak": "information-exposure",
+    "sensitive data exposure": "information-exposure",
   };
   const key = raw.toLowerCase().trim();
   return map[key] ?? "other";

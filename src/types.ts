@@ -9,6 +9,7 @@ export type VulnType =
   | "xxe"
   | "ssrf"
   | "open-redirect"
+  | "information-exposure"
   | "other";
 
 export type Severity = "critical" | "high" | "medium" | "low";

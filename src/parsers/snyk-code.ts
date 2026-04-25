@@ -31,6 +31,7 @@ function mapRuleId(ruleId: string): string {
   if (/hardcoded/.test(id)) return "hardcoded-credentials";
   if (/deserializ/.test(id)) return "insecure-deserialization";
   if (/idor|insecuredirectobject/.test(id)) return "idor";
+  if (/informationexposure|infoleak|sensitivedata|x-powered-by/.test(id)) return "information-exposure";
   return "other";
 }
 

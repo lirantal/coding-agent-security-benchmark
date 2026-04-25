@@ -2,6 +2,14 @@
   "description": "Intentionally vulnerable Express.js app for security benchmark testing",
   "vulnerabilities": [
     {
+      "id": "js-xpowered-by-header-1",
+      "type": "information-exposure",
+      "severity": "medium",
+      "file": "app.js",
+      "line": 13,
+      "description": "X-Powered-By header exposes information about the used framework to potential attackers"
+    },
+    {
       "id": "js-hardcoded-creds-1",
       "type": "hardcoded-credentials",
       "severity": "high",
