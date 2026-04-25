@@ -186,6 +186,13 @@ function normalizeVulnType(raw: string): VulnType {
     "information disclosure": "information-exposure",
     "info leak": "information-exposure",
     "sensitive data exposure": "information-exposure",
+    "allocation-of-resources-without-limits-or-throttling": "allocation-of-resources-without-limits-or-throttling",
+    "allocation of resources without limits or throttling": "allocation-of-resources-without-limits-or-throttling",
+    "missing rate limiting": "allocation-of-resources-without-limits-or-throttling",
+    "no rate limit": "allocation-of-resources-without-limits-or-throttling",
+    "resource exhaustion": "allocation-of-resources-without-limits-or-throttling",
+    "denial of service": "allocation-of-resources-without-limits-or-throttling",
+    "dos": "allocation-of-resources-without-limits-or-throttling",
   };
   const key = raw.toLowerCase().trim();
   return map[key] ?? "other";

@@ -10,6 +10,7 @@ export type VulnType =
   | "ssrf"
   | "open-redirect"
   | "information-exposure"
+  | "allocation-of-resources-without-limits-or-throttling"
   | "other";
 
 export type Severity = "critical" | "high" | "medium" | "low";

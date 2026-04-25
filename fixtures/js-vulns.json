@@ -1,4 +1,5 @@
 {
+  "_note": "When adding a new vulnerability type not already in VulnType, see docs/benchmark-management.md#updating-when-you-add-a-new-vulnerability-type for the source files that need updating.",
   "description": "Intentionally vulnerable Express.js app for security benchmark testing",
   "vulnerabilities": [
     {
@@ -18,12 +19,12 @@
       "description": "Hardcoded database password in DB_CONFIG object"
     },
     {
-      "id": "js-sqli-1",
-      "type": "sql-injection",
-      "severity": "critical",
+      "id": "js-allocation-of-resources-without-limits-or-throttling-1",
+      "type": "allocation-of-resources-without-limits-or-throttling",
+      "severity": "medium",
       "file": "app.js",
-      "line": 24,
-      "description": "User input (req.query.username) directly concatenated into SQL query string"
+      "line": 34,
+      "description": "Expensive operation (a file system operation) is performed by an endpoint handler which does not use a rate-limiting mechanism. It may enable the attackers to perform Denial-of-service attacks. Consider using a rate-limiting middleware such as express-limit."
     },
     {
       "id": "js-xss-1",

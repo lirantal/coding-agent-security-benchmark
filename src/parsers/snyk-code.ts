@@ -32,6 +32,8 @@ function mapRuleId(ruleId: string): string {
   if (/deserializ/.test(id)) return "insecure-deserialization";
   if (/idor|insecuredirectobject/.test(id)) return "idor";
   if (/informationexposure|infoleak|sensitivedata|x-powered-by/.test(id)) return "information-exposure";
+  // Snyk Code flags missing rate limiting as NoRateLimiting or similar; original jq noted these fell to "other"
+  if (/ratelimit|nothrottle|resourceexhaust/.test(id)) return "allocation-of-resources-without-limits-or-throttling";
   return "other";
 }
 

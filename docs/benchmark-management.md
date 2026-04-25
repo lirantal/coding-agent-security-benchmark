@@ -12,14 +12,15 @@ How to add new eval tasks, new fixtures, and new run configs — without touchin
    - [Step 4 — Run and verify](#step-4--run-and-verify)
 3. [Task JSON Reference](#task-json-reference)
 4. [Ground-Truth JSON Reference](#ground-truth-json-reference)
-5. [Updating Run Configs](#updating-run-configs)
+5. [Updating When You Add a New Vulnerability Type](#updating-when-you-add-a-new-vulnerability-type)
+6. [Updating Run Configs](#updating-run-configs)
    - [Adding a new model config](#adding-a-new-model-config)
    - [Adding an MCP server config](#adding-an-mcp-server-config)
    - [How MCP tool permissions work](#how-mcp-tool-permissions-work)
    - [Adding a SAST command config](#adding-a-sast-command-config)
-6. [Run Config JSON Reference](#run-config-json-reference)
-7. [Worked Example: Adding a Ruby Fixture](#worked-example-adding-a-ruby-fixture)
-8. [Troubleshooting](#troubleshooting)
+7. [Run Config JSON Reference](#run-config-json-reference)
+8. [Worked Example: Adding a Ruby Fixture](#worked-example-adding-a-ruby-fixture)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -259,9 +260,73 @@ Each entry in `vulnerabilities`:
 | `"ssrf"` | Server-Side Request Forgery — user-controlled URL used in a server-side HTTP request |
 | `"open-redirect"` | User-controlled redirect target without validation |
 | `"information-exposure"` | Sensitive data or framework details leaked to clients (e.g. stack traces, version headers, verbose error messages) |
+| `"allocation-of-resources-without-limits-or-throttling"` | Endpoint performs expensive work without rate limiting, enabling DoS. Aliases: "resource exhaustion", "missing rate limiting", "denial of service" |
 | `"other"` | Any vulnerability that doesn't fit the above categories |
 
 **Scoring note:** The scorer matches findings by `type`. If your fixture has two SQL injections, give each its own entry with unique `id`s — they will be tracked and scored independently.
+
+---
+
+## Updating When You Add a New Vulnerability Type
+
+If you use a `type` value in a ground-truth JSON that isn't already in the `VulnType` union, **three source files need updating**. The fixture JSON files include a `"_note"` field pointing here as a reminder.
+
+### Step 1 — Add to `VulnType` in `src/types.ts`
+
+`VulnType` is the authoritative enum for all valid type strings. Without this, the ground-truth JSON references an unrecognised value and the scorer can never produce a match.
+
+```typescript
+export type VulnType =
+  | "sql-injection"
+  | "xss"
+  // ... existing values ...
+  | "your-new-type"   // ← add here
+  | "other";
+```
+
+### Step 2 — Add aliases in `src/scorer.ts`
+
+The `normalizeVulnType` function maps free-text from the agent's output to `VulnType`. AI models use many phrasings for the same concept — without aliases, the scorer can't match a model saying "resource exhaustion" to a ground-truth entry typed `"allocation-of-resources-without-limits-or-throttling"`.
+
+Add every likely alias you'd expect a model or security tool to use:
+
+```typescript
+const map: Record<string, VulnType> = {
+  // ... existing entries ...
+  "your-new-type": "your-new-type",       // exact match passthrough
+  "common alias one": "your-new-type",    // what a model might say
+  "common alias two": "your-new-type",
+};
+```
+
+When in doubt, add more aliases rather than fewer — a false-positive match from a broad alias is scored the same as any other false positive.
+
+### Step 3 — Add a pattern in `src/parsers/snyk-code.ts`
+
+The Snyk parser maps rule IDs (e.g. `javascript/CommandInjection`) to `VulnType`. Without this, Snyk findings for the new type fall to `"other"` and are never matched against ground truth, making Snyk appear to miss them even when it finds them.
+
+Add a regex pattern in `mapRuleId()`:
+
+```typescript
+if (/yourpattern|alternatepattern/.test(id)) return "your-new-type";
+```
+
+The `id` is already lowercased before this function runs. Check Snyk Code's actual rule IDs for your vulnerability class to write an accurate pattern. If you're unsure, add a broad pattern and refine it after a test run.
+
+> If you add other SAST parsers in `src/parsers/`, update those too — each parser has its own rule ID mapping.
+
+### Step 4 — Add to the valid types table in this doc
+
+Add a row to the **Valid `type` values** table in [Ground-Truth JSON Reference](#ground-truth-json-reference) so other contributors know when to use the new type.
+
+### Checklist
+
+```
+□ src/types.ts          — added to VulnType union
+□ src/scorer.ts         — added exact match + common aliases to normalizeVulnType
+□ src/parsers/snyk-code.ts  — added regex pattern to mapRuleId()
+□ docs/benchmark-management.md  — added row to valid type values table
+```
 
 ---
 
